@@ -1,0 +1,14 @@
+build/
+build-native/
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+*.state.json
+backups/
+tests/hardware/reports/
+output/
+tempCodeRunnerFile.py
+recording.wav
+recording.pcm

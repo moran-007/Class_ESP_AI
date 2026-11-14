@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "connection": {"port": "AUTO"},
+  "pins": {"led": 12, "button": 2, "adc": 1, "pwm": 12},
+  "servo": {
+    "name": "test", "pin": 14,
+    "min_angle": 30, "max_angle": 150,
+    "min_pulse_us": 1000, "max_pulse_us": 2000
+  },
+  "display": {
+    "panel": "st7735s_128x160",
+    "sck": 4, "mosi": 5, "cs": 15, "dc": 7, "rst": 6,
+    "backlight": 16, "rotation": 1, "invert": false, "brightness": 60
+  }
+}
