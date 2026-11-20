@@ -2,4 +2,8 @@
 
 [hidden]{display:none!important}
 
+.wifi-panel{margin:14px clamp(14px,2vw,25px) 0;padding:12px 16px;width:auto}
+#wifi-form{max-width:460px}
+#wifi-status{overflow-wrap:anywhere}
+
 .json-error{color:#a03d3d;font-size:12px;min-height:18px;margin:8px 0 0}

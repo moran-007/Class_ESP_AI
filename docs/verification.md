@@ -1,6 +1,114 @@
 # 本地版本验证记录
 
-创建日期：2026-11-08；最近验证更新：2026-11-13。当前固件和SDK：0.5.0。范围为新 `ai_maker/` 的板级固件、页面编辑器、标准库Turtle与Python SDK，不包含AI服务器。下文保留历史版本证据；当前状态以V0.5节为准。
+本地 SDK 为 0.8.3；COM5 已运行 0.8.0 固件与 16 MiB 自定义分区。GitHub 已发布版本仍为 0.5.0。
+
+## SDK 0.8.3：配网阶段提示
+
+- 模拟串口验证阶段提示、成功 IP、超时保留旧配置、密码不输出及 `progress=False`；SDK 回归 145 项，1 项历史实验跳过。独立只读审查通过。
+- COM5 用只读会话查询到上次配网 `connect_timeout`，当时查询的空列表不代表没有保存过网络；后来设备已自动连回保存的网络。本轮没有重发配网或改写板端凭据。
+
+## Windows 项目环境统一
+
+- 从空的项目根目录 `.venv` 运行统一安装入口，安装 SDK 0.8.2（读取本项目源码）、pyserial 3.5、Pillow 13.0.0；Python 3.14.0、Tk 8.6 通过检查。再次运行识别并复用同一环境，不重复安装。项目内只剩根目录一份 `pyvenv.cfg`。
+- 用该环境运行 `scripts/test.ps1`：C++ 核心及驱动通过，SDK 143 项有 1 项历史实验跳过，配置 15 项及编辑器 6 项通过。从项目外启动 Wi-Fi 两个入口的 `--help` 成功。检查了 Tcl/Tk 窗口和本地课堂脚本语法，未打开串口或动开发板设置。
+
+## SDK 0.8.2：Wi-Fi 查询与清除
+
+- 复用固件原有 USB 操作。配网、查询、清除可在同一 `Robot` 连接中使用；只查时支持只读连接。新增 SDK 行为由模拟串口验证，完整 SDK 回归 143 项，1 项历史实验跳过。独立只读审查通过。
+- 本轮 COM5 打开时返回拒绝访问，未重做实机查询，也未清除现有凭据。旧版固件的实机配网结果见下文。
+
+## USB Wi-Fi 屏幕测试：实机连网与自动重连
+
+- 在 COM5 实机配网，中文 SSID 正常，获得 IPv4 并保存配置。使用板上已有 ST7735S 160×128 接线运行 30 秒，屏幕初始化及名称、IPv4、北京时间绘制指令均执行完成；未做实物目视确认。测试脚本现位于 [tests/wifi/wifi_screen.py](../tests/wifi/wifi_screen.py)。
+- 测试退出后用 ROM 工具复位，确认没有 USB 控制会话时按已保存配置自动连上 Wi-Fi；原接线、页面 CRC 和计数程序均保留，计数程序恢复运行。没有再次烧录或修改分区。
+- 时间由电脑按 UTC+8 提供；此测试未验证板端 NTP 或脱离 USB 刷新。
+
+## 单文件配网与 COM5 分区迁移
+
+- COM5 串口、芯片型号、MAC 和 16 MiB 实际容量核对后，读回完整 Flash，备份存于本机 `backups/wifi_ota_com5_20261119/`。核对旧镜像、分区表校验和、空闲区域及 OTA 元数据后，写入应用、16 MiB 引导程序和自定义分区表，未整片擦除。
+- 三处写入均通过 esptool 校验；首次启动前再次读回，引导程序和分区表与构建一致，NVS/PHY 区字节与迁移前完全相同，OTA 元数据仍为空。复位后设备报告 0.8.0 和 `wifi_provisioning`；接线版本仍为 38，页面 CRC 仍为 `c70fa309`，无 USB 控制会话时计数从 15 增至 17。
+- `build/ota-ready-native-usb/ai_maker_s3.ino.bin` 为 1,283,712 字节；SHA256 `d46f1b3afba83ba333bce3f9d719dc2a86434a4797cb2928d45e59ed59355661`。SDK 0.8.1 wheel SHA256 `3318dcae6e12797aca3241217716a41669cab3c5a0d52b717d4461315224deeb`。
+- SDK 回归 142 项（1 项历史实验预期跳过）、配置 15 项、编辑器 HTTP 6 项。独立只读审查复核分区、构建产物、Tk 串口设置和配网 SDK。COM5 当前报告尚未配网；实际路由器及 DHCP 需输入本地 Wi-Fi 信息后验证。OTA 只预留两个槽，尚未实现联网传输。
+
+## V0.8 USB Wi-Fi 配网：迁移前的构建与软件验证
+
+- 旧核心调用 `wifi.status` 返回 `UNSUPPORTED_OPERATION`。新核心模拟验证中文 UTF-8、控制会话限制、拿到 IPv4 才保存、失败保留旧配置、重启重连、不泄露密码，以及清除后停止重连。
+- `scripts/test.ps1` 通过：SDK 141 项（1 项历史实验预期跳过）、配置 15 项、编辑器 HTTP 6 项，以及 C++ 核心和驱动检查。独立只读审查复核固件、SDK 和网页路径，按反馈修正只读接管、输入检查及异常状态。
+- Playwright 用模拟设备提交中文名称，确认网页从正在配网更新为已保存并显示测试 IP，提交后密码框清空。390 像素宽显示见本机 `output/wifi_v080_browser.png`。模拟 IP 不代表接入真实路由器。
+- 0.8 应用 `build/wifi-native-usb/ai_maker_s3.ino.bin` 为 1,283,712 字节，SHA256 `3287f296cc8db783118cc3d6723274bafa1551d351834b5b86bfbec07d1d6e2d`。目标构建通过；原板已确认应用区只有 1,048,576 字节，本轮未刷写或修改分区。实际 Wi-Fi 连接、DHCP、掉线恢复和独立供电仍未验收。
+- SDK 安装包 `sdk/python/dist/ai_maker_robot-0.8.0-py3-none-any.whl` 为 54,109 字节，SHA256 `7f53d5657ba4db7f37666fa2e415d150751fc9408b4f2bc608359fe7e74553fd`。全新虚拟环境安装后用 `python -I` 运行 3 项配网 SDK 测试通过；终端模拟也输出了成功、中文名称和测试 IP，未输出密码。
+
+## V0.7数字累加：固化后每秒加一实测通过
+
+- 用户要求持续数字累加；按板端定时控件实现，默认start0、step1、interval1秒，计数存在RAM，重启回start，不每秒写Flash。display.counter是根末尾唯一终端步骤，loop=False，不是全局变量/命名页面引擎。
+- 有效Red：旧0.6固件缺standalone_counter；新模型和SDK有效counter用例先因无接口而失败。新增模型5组、执行器6组通过，覆盖严格类型/终端/矩形、每秒进度、延迟追赶、uint32毫秒回绕、int64溢出停止、驱动失败、接管/close/lease/disable/clear和无NVS运行写入。
+- 完整软件回归：SDK138项，137通过、1项旧学员自由实验预期跳过；配置15项、编辑器5项通过。新增2项真实SDK/生产C++核心联调含进程重启后的无owner计数、保存内容不随数值更新、接管重置、end后添加counter。
+- ESP32-S3原生USB/RGB48构建通过，应用721984字节，SHA256 `7414df74fa1486c838807d369d433a656e53475975da146117d00d09280b6bd4`，小于原板1MiB应用区。
+- 发现板上已有用户启用的13步A/B流程。先在`backups/counter_v070_20261115/`保存原程序及enabled/loop、原config/页面模型、真实64KiB前缀和完整1MiB旧应用；0.6应用字节和原分区表核对正确后，仅写0x10000新应用并哈希验证通过。
+- 升级后0.7能力通过，原config和完整页面模型/原保存程序完整相等，舵机未激活、音频未启动。再运行portable16保存counter并ROM复位，之后无控制会话运行。
+- 只读采样15次，约14.235秒从52增加到66，每条约1.017秒、数值逐次+1；超过6秒会话租约仍running/active且无错误，随后串口关闭。用户回复“每秒正常加一，显示正常”，实屏确认通过。
+- 当前按用户“一直增加”要求保留计数运行，没有自动清除。清除入口tests/counter/clear_counter.py；恢复本次测试前旧A/B流程的入口restore_previous.py。两脚本已对native核心实际执行，恢复blob与原程序/loop/enabled相同；此检查没有打断真板计数。
+- 独立只读counter_review确认无未解决P0/P1/P2；原用户quick文件哈希保持，不改写学员实验。实际拔USB改独立电源的冷启动未声称由软件代做，当前证明是复位后无SDK会话运行及用户观察。
+- SDK wheel52967字节，SHA256 `05c3bff4958be01d1dab56d81422901796eed59025cec84db771c1d5f3ac47b9`；9模块与源码核对，版本0.7.0。本轮不提交/推送/发布，不覆盖旧GitHub附件。
+- 工程editable及SDK独立环境已更新0.7.0；全新venv安装最终wheel和drawing依赖，从工程目录外以Python -I运行全部138项SDK检查通过，1项预期跳过。11份文档50段Python和全部本地链接检查通过。
+
+证据：`output/counter_v070_hardware.json`、`counter_v070_full_tests.log`、`counter_v070_sdk_final.log`；私有备份/刷写日志均被忽略。用法见 [数字累加指南](数字累加计数器_V0.7.md) 和 [清除/恢复入口](../tests/counter/README.md)。
+
+## SDK0.6.1：begin/end录制验证
+
+- 新增begin/end/cancel、save省略Program的同步预览录制，保留显式Program写法；固件和协议模型不变。屏幕/舵机set及start在begin前，GPIO/PWM模式设置在块内；不是屏幕像素或设备完整运行状态截图。
+- 行为Red：新增测试先因缺begin/end失败。实现后14项录制测试通过，覆盖预检、成功提交、原config快照、深拷贝、非法/不支持操作、DeviceError/超时、wait真实等待及并发、取消令牌、stop/close、中文大小/64节点上限。
+- 新增2项与同一生产C++核心联调通过；完整portable15真实预览等待两次3秒，录制13步骤并保存，隐式快照与显式Program一致；原配置和清除路径验证通过。
+- 最终SDK129项运行：128通过、1项旧学员实验预期跳过；配置15项、编辑器5项通过。新的全量结果记录在output/recording_v061_full_sdk.log等日志。
+- 回归基线修正：用户已自由修改quick/screen_text.py，其内容不再符合旧测试硬编码的config.apply预期。保留用户文件，改用发布的portable11标准文本示例，保留原初始化顺序和close断言；其他屏幕核心验证未减弱。
+- wheel51748字节，SHA256 `2325237417a2c58e6aaae731cd27f73b8bfc4dbc6f0eff1ca73b2c5ddbdb0f6b`，9个模块与最终源码逐字节相同。工程editable与SDK独立环境均升级0.6.1。
+- 全新venv安装最终wheel及drawing，从工程目录外以Python -I运行完整129项SDK检查通过（1项预期跳过）。安装验证日志output/recording_v061_installed_sdk.log。
+- 独立只读审查recording_review确认无未解决P0/P1/P2；45个固件/用户quick文件hash与保护快照一致。8份相关文档48段Python语法与本地链接检查通过。
+- 本轮未打开真实串口、未改固件、未改写板上已清除的程序、未发布GitHub新版本。0.6.1同步预览本轮验证为生产核心模拟硬件；之前0.6.0屏幕实物固化/清除结果单列如下，不重复声称为新录制层的实屏测试。
+
+主示例：[portable15](../examples/portable/15_screen_record.py)，操作说明：[绘图录制与固化](绘图录制与固化_V0.6.1.md)。命名页面/动态数字使用已有pages模板的在线show/text；不因录制新增离线变量或自动page ID。
+
+## V0.6屏幕真机测试：固化、清除与原页面恢复通过
+
+- 识别同一原生USB COM5，升级前为0.5.0、无控制会话；屏幕ST7735S128×160、rotation1、GPIO4/5/15/7/6/16；原默认页home启用，CRC c70fa309，原舵机映射保留且未激活。
+- 在`backups/screen_program_v060_20261114/`保存配置/完整页面模型、真实64KiB前缀及完整1MiB应用区；实际旧应用与已知0.5.0产物一致，原分区表与先前备份一致。没有公开这些私有备份。
+- 只写0x10000应用717376字节，esptool哈希验证通过；0.6.0握手、原config完整相等、原页面模型/CRC相等；没有移动舵机或启用音频。
+- 运行`tests/standalone/screen_save.py`保存A/B屏幕循环并关闭会话，再通过ROM复位。新boot_id变化；无SDK控制会话，program.saved/enabled/running=true，display.active=true，error为空。
+- 只读查询间隔13秒后仍运行，超过6秒会话租约；随后关闭串口，留下A/B画面供用户观察。该结果是板端状态，不是屏幕光学确认，也不是替用户断USB改电源的证明。
+- 用户确认A/B正常交替，中文和青色/黄色横条均正常，屏幕固化光学观察通过。
+- 之后电脑会话接管停止固化，原config和完整页面模型再次核对相同；运行screen_clear实际清除并ROM复位。新boot_id变化，无会话时program.saved/enabled/running/boot_pending/cleanup_required全部false，error为空；page home独立显示、CRC仍c70fa309，原config完整相同，舵机未激活。
+- 当前板已清除测试流程，保留0.6固件；不会再按保存策略启动A/B。用户再次确认“已恢复原页面，不再出现A/B”，原默认页恢复实屏观察通过。本轮屏幕固化、清除、软件复位后保持清除和恢复原页面的测试通过；实际拔USB、改独立电源的断电测试仍未声称完成。
+- 两个短测试文件语法检查通过；screen_save模型检查通过，screen_clear已对生产native核心验证会话关闭与清除逻辑，后者不代替实际板测试。
+
+记录：`output/screen_program_v060_hardware.json`；备份/刷写/复位日志在上述私有目录。操作说明见 [屏幕固化、清除与恢复](屏幕固化测试与清除恢复_V0.6.md)。
+
+## V0.6本地验证：固化流程与MicroPython路线说明
+
+| 检查 | 结果与边界 |
+|---|---|
+| 行为Red | 旧0.5核心device.info不含standalone_program，新增能力断言失败；SDK缺Program接口，模型有效用例在stub上失败 |
+| 生产核心回归 | 基础29、屏幕11、页面模型10、页面运行12、音频12组及RGB/屏幕故障检查通过，音频HAL8组通过 |
+| 固化模型与执行 | 模型6组、执行11组通过：3072B/64节点/4层条件、严格类型/范围/白名单、RGB/数字/ADC/PWM/舵机/屏幕、非阻塞等待、循环预算及uint32时间回绕 |
+| 重启/接管 | 同一C++核心无owner的模拟启动执行；保存不立即运行，session.open停止接管，close/租约不自动恢复，maintenance阻止开机动作 |
+| 保留配置 | 独立程序映射临时切换，正常停止恢复原在线屏幕/舵机与休眠音频映射；没有把程序映射写入原live配置 |
+| 故障Red与修复 | 新回归先重现：cleanup失败保存临时映射、尾随坏数据仍启动、失败close/expiry泄漏音频快照；修复后11组全通过 |
+| 中文请求边界 | 接近3072B中文模型曾因ensure_ascii转义超4096；仅program.save改UTF8编码，实际线长仍校验；真实SDK+C++保存/下载通过 |
+| Python回归 | 完整113项，112通过、1项旧学员自由实验预期跳过；新增3项真实核心联调含文件持久化进程重启、无session执行/接管、控制及中文大小边界 |
+| 课程/编辑器 | 配置15项、编辑器5项最终完整运行通过；曾有一次旧413超大请求测试发生Windows10053连接中止，同码单独重跑5项及最终全量均通过，未因此改动编辑器 |
+| ESP32构建 | Arduino-ESP32 3.3.12、原生USB/RGB48编译通过；应用717376字节，小于已核对原板factory1MiB；没有写设备或参考分区 |
+| SDK安装包 | wheel49415字节；9个模块与最终源码一致；本机项目editable和SDK独立环境更新0.6.0 |
+| 新环境可移植性 | 新venv安装最终wheel及drawing依赖，从工程目录外以Python -I运行全部113项SDK检查，1项预期跳过；12/13/14示例分别复制到临时目录，用安装包与真实native核心运行、关闭和保存策略验证通过，不依赖_board或源码src导入 |
+| 独立审查 | standalone_review只读追踪运行/故障/配置/lease/编码与实际产物；提出问题均有回归修复，最终无未解决P0/P1/P2 |
+| 文档与示例 | 固定开发指南、V0.6全API、Program协议、MicroPython比较、README/CHANGELOG及12/13/14示例同步；7份主要文档41段Python语法/本地链接和14个portable脚本语法通过 |
+| 实物边界 | 本轮未打开串口、未刷板、未驱动实物；真板断电自启、NVS掉电恢复、外部按钮/电气/机械效果待验收。模拟文件持久化不是NVS实物断电测试 |
+
+最终应用：`build/standalone-native-usb/ai_maker_s3.ino.bin`，SHA256 `44785b9ff225b256a48258ebaac48626519b616e9b09959dc70983b7fd22e95b`。
+
+最终wheel：`sdk/python/dist/ai_maker_robot-0.6.0-py3-none-any.whl`，SHA256 `a9abf9a0a1b64f49d2e6525aeccefe979b707cb09051825ab3b2b92db0f32db5`。
+
+运行命令：`scripts/test.ps1 -Python .venv/Scripts/python.exe -Compiler D:/msys64/ucrt64/bin/g++.exe`；日志`output/standalone_v060_full_tests.log`。目标构建`firmware/build.ps1 -Transport native-usb -BuiltinRgbPin 48 -BuildDirectory build/standalone-native-usb`。
+
+检查点：实现、Red、回归/目标构建及独立审查通过；0.6未提交/推送/发布，没有覆盖0.5附件。实际板需先升级匹配0.6应用才能运行固化示例。用户的MicroPython比较问题已在独立说明中结合官方文档回答。
 
 ## V0.5当前验证：IO分类、I²S音频、统一格式与跨电脑SDK
 
@@ -19,7 +127,7 @@
 | 依赖与安装 | 包本体纯Python；核心只需pyserial。图片/Turtle可选Pillow，窗口需Tcl/Tk；未声称一套Pillow二进制能适配所有电脑 |
 | ESP32最终构建 | 原生USB/RGB48；Arduino-ESP32 3.3.12固定；应用688832字节，小于实际factory1MiB，未写参考分区/merged |
 | 升级备份 | 先verify-flash确认真实旧V0.4应用匹配已知产物，再保存该应用副本；ROM读取当前64KiB前缀含NVS，原分区表逐字节相同；未声称全16MiB备份 |
-| 实板写入 | 同一COM5/84:C7:BB:7B:F7:DC，确认无控制会话后，仅写0x10000应用；esptool哈希验证通过 |
+| 实板写入 | 核对 COM5 设备身份，确认无控制会话后，仅写0x10000应用；esptool哈希验证通过 |
 | 实板配置回归 | 身份0.5.0、45项新SDK分页、audio运行时映射/冲突/保留脚拒绝/清理通过；旧screen/servo配置完全一致，退出后默认页恢复、舵机未激活 |
 | 实物音频边界 | 用户确认模块INMP441/MAX98357A，但IO将自行调整；本轮实板未audio.begin、未录放、未操作舵机，不声称真实收音或听感通过 |
 | 文档与入口 | V0.5完整函数手册覆盖当前公开方法；5份入口文档的11段Python代码语法、全部本地链接、8个portable文件语法检查通过；菜单启动并输入0退出通过 |
@@ -97,7 +205,7 @@ fps=1～60/None仅用于电脑端display.image帧开始上限，不写NVS、不�
 | 窗口生命周期 | 捕获先于USB连接，显式点击后连接一次、多次发送复用会话，关闭窗口才释放；失败不自动重试 |
 | ESP32目标构建 | native-usb/RGB48、Arduino-ESP32 3.3.12；应用661056字节，小于实际factory1MiB |
 | 升级保护 | ROM路径读取升级前V0.3应用620736字节和64KiB前缀；应用SHA与已知V0.3一致，原分区表逐字节一致，备份清单已保存 |
-| 当前板刷写 | COM5/84:c7:bb:7b:f7:dc；只写0x10000应用，esptool哈希校验通过；未写参考merged或分区表 |
+| 实板刷写 | 核对 COM5 设备身份；只写0x10000应用，esptool哈希校验通过；未写参考merged或分区表 |
 | 配置迁移 | 屏幕ST7735S、160×128横屏、自定义SPI/BLK和SG90 GPIO14映射保留；全程无servo.move |
 | 真实NVS页面 | 含48×48图像的页面JSON超过4KiB，上传、保存、下载内容完全一致，证明实际blob路径可用；随后保存1577字节示例页 |
 | 真实网页到开发板 | 本地HTTP服务→实际SDK→COM5完成连接、上传、显示、启用默认页、断开；不是FakeRobot |

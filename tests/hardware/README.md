@@ -75,28 +75,13 @@ RGB颜色写入后由灯内部保持，数据线通常空闲为LOW。因此RGB�
 
 原生USB输出在`build/led-diagnostic-native-usb`；`-Transport uart`输出在`build/led-diagnostic`。诊断与教学固件源码分别保留。
 
-### 当前这块板怎样恢复教学固件
+### 恢复旧教学固件的历史记录
 
-本次已核实原COM3、现COM5对应同一块板，使用1 MiB的factory应用分区，起点为0x10000；COM5读回的分区表与原备份一致。原启动/配置前64 KiB和被改写的应用前384 KiB已有本地备份。以下仅用于这块仍保持该布局的板，先编译与当前原生USB通路匹配的教学应用，不写bootloader、分区表或整合镜像：
-
-```powershell
-cd E:\moran_project\arduino\ai_maker
-$makerEsptool = 'C:\Users\moran\AppData\Local\Arduino15\packages\esp32\tools\esptool_py\5.3.1\esptool.exe'
-.\firmware\build.ps1 -Transport native-usb -BuiltinRgbPin 48
-& $makerEsptool --chip esp32s3 --port COM5 --baud 115200 write-flash 0x10000 .\build\native-usb\ai_maker_s3.ino.bin
-```
-
-确认写入后数据哈希校验通过，再运行01查询到`ai-maker-s3`，然后使用02。更换板子、改变分区、镜像超过已备份区域或更换安全配置后，需重新核对，不能直接照用这个偏移。需要返回原来的factory应用时，应使用本机备份及对应恢复流程，不用新工程的16 MiB整合镜像覆盖原资源。
+当时核实原 COM3、后来的 COM5 对应同一块板，旧 factory 分区为 `0x10000` 起的 1 MiB。**当前教学固件已超过 1 MiB，不能用旧命令覆盖。** 恢复已有开发板时，先查实际分区，再按 [固件安装与版本兼容](../../docs/固件安装与版本兼容.md) 选择可用的应用镜像；使用自己的备份恢复旧版本。完成写入校验后，先运行 01 查询到 `ai-maker-s3`，再使用 02。
 
 ## 2 首次准备Python环境
 
-需要 Python 3.11 或以上。推荐在新工程目录建立独立环境，PowerShell 执行：
-
-```powershell
-cd E:\moran_project\arduino\ai_maker
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e .\sdk\python
-```
+需要 Python 3.11 或以上。在 Windows 双击项目根目录的 [安装Python环境.cmd](../../安装Python环境.cmd)，硬件测试使用同一个 `.venv`，不用在测试目录再建环境。
 
 首次安装需要取得依赖 `pyserial`；安装好后，本地 USB 测试不需要互联网。脚本也能从本工程源码直接加载 SDK，但运行环境仍需安装 pyserial。不要把原 AI 固件的串口维护命令当成教学协议。
 
@@ -142,7 +127,7 @@ python -m venv .venv
 
 ## 5 对照原项目收音与思考颜色
 
-原项目的 [setState](../../../esp32_multi_mic_device/esp32_multi_mic_device.ino) 使用同一个 `rgbLedWrite` 驱动：收音 `(28,0,0)`，思考 `(18,10,0)`，播放 `(0,22,0)`。本测试仅复现颜色，不开启录音、识别或 AI。
+原项目的 `setState` 使用同一个 `rgbLedWrite` 驱动：收音 `(28,0,0)`，思考 `(18,10,0)`，播放 `(0,22,0)`。本仓库的测试只复现这些颜色，不依赖原项目源码，也不开启录音、识别或 AI。
 
 ```powershell
 .\.venv\Scripts\python.exe .\tests\hardware\02_builtin_rgb.py --port COM5 --run --pattern states --cycles 2 --hold 4

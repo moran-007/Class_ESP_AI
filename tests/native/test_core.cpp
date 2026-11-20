@@ -74,7 +74,7 @@ void info_and_default_configuration() {
   const auto reply = f.ok("device.info");
   const auto info = reply["data"];
   require(info["firmware_family"] == "ai-maker-s3", "teaching firmware family");
-  require(info["firmware_version"] == "0.5.0", "teaching firmware version");
+  require(info["firmware_version"] == "0.8.0", "teaching firmware version");
   require(info["target"] == "esp32s3" && info["protocol_version"] == 1, "S3 protocol target");
   for (const auto* name : {"gpio", "adc", "pwm", "servo", "configurable_servo_pins", "display", "configurable_display_pins"})
     require(info["capabilities"][name].is<bool>() && info["capabilities"][name].as<bool>(), std::string("implemented capability ") + name);

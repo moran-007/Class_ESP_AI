@@ -1,6 +1,66 @@
 # AI 小创客本地 Python SDK
 
-当前SDK 0.5.0 连接本地 USB 教学固件 `ai-maker-s3`，支持基础 GPIO、ADC、PWM、舵机、板载 RGB、可配置 SPI 屏幕、可保存的JSON页面包，以及INMP441/MAX98357A有界I2S收音/播放。音频需要教学固件0.5.0；SDK不会自动访问AI服务器。页面功能需固件0.4.0声明pages能力；屏幕基本功能需固件0.3.0声明display能力。较旧的教学固件仍可使用已有基础接口。源码和软件测试不等同于物理硬件验收；具体实机验证以主工程记录为准。现有AI机器人2.1.6固件不实现本SDK教学协议。
+## 0.7板端每秒加一
+
+需要SDK和固件0.7.0的standalone_counter能力；不是电脑while循环。终端控件必须是主流程最后一步，保持loop=False默认值：
+
+```python
+from ai_robot import Program, Robot
+
+flow = Program()
+flow.display.set(panel="st7735s_128x160", SCL=4, SDA=5,
+                 CS=15, DC=7, RES=6, BLK=16, rotation=1)
+flow.display.fill("black")
+flow.display.text("数字累加", x=8, y=8, color="cyan")
+flow.display.text("+1 / second", x=8, y=26)
+flow.display.counter(name="count", start=0, step=1, interval=1,
+                     x=8, y=48, width=144, height=20)
+with Robot(port="COM5") as robot:
+    robot.program.save(flow, autostart=True)
+```
+
+RESET后独立显示0、1、2……，RAM计数不每秒写Flash；每次启动从start重来。start为非负64位整数，step为1～2147483647，interval为0.05～60秒；显示区域最小133×16且完整在屏内。延迟按完整周期追赶，64位溢出时报错停止，不静默归零。旧0.6固件或loop=True会在维护/写入前拒绝，旧普通流程不受影响。
+
+begin/end录制继续支持。要给录制背景追加计数器，取得flow=end()返回值，再flow.display.counter(...)，显式save(flow,autostart=True)。不是Robot.display实时方法，也不代表任意变量绑定或命名页面调度。详情见 [数字计数指南](../../docs/数字累加计数器_V0.7.md)；清除仍用program.clear，恢复之前流程需要先有download备份。
+
+SDK0.6.1新增同步预览录制，固件继续使用0.6.0，无需重刷。先配置屏幕/舵机并start，再begin；GPIO/PWM的set需要在录制块内：
+
+```python
+from ai_robot import Robot
+
+with Robot(port="COM5") as robot:
+    robot.display.set(panel="st7735s_128x160", SCL=4, SDA=5,
+                      CS=15, DC=7, RES=6, BLK=16)
+    robot.start()
+    robot.program.begin()
+    robot.display.clear()
+    robot.display.text("你好，创客！", x=8, y=8)
+    robot.wait(3)
+    robot.program.end()
+    robot.program.save(loop=True, autostart=True)
+```
+
+支持动作立即预览并录入；wait实际等待并录入时长。end返回独立Program但不写Flash；save省略Program时保存最近成功end的快照，显式save(Program)兼容。cancel丢弃草稿和隐式快照，不撤销已预览动作或删除板端内容；stop/close仍可正常停止。状态查询/心跳不录入；图片/音频/pages/配置更改和GPIO/ADC读取拒绝；录制是调用步骤，不是屏幕截图或Python源码转换。完整说明见 [录制教程](../../docs/绘图录制与固化_V0.6.1.md)。
+
+可在单份 Python 文件中用 `robot.setwifi(name, password)` 配网，后续复用同一个 `robot`。SDK 0.8.3 起默认输出配网阶段，传 `progress=False` 可关闭。`robot.listwifi()` 查询当前连接，`robot.clearwifi()` 清除板端保存的网络。旧入口 `robot.wifi.connect/status/clear` 仍可使用，需要固件声明 `wifi_provisioning`。只需查看时可用 `Robot(port="COM5", read_only=True)`。
+
+## 保存到开发板，通电独立运行
+
+```python
+from ai_robot import Robot, Program
+
+flow = Program()
+flow.led.color("red")
+flow.wait(1)
+flow.led.color("green")
+flow.wait(1)
+with Robot(port="COM5") as robot:
+    robot.program.save(flow, loop=True, autostart=True)
+```
+
+构建Program只记录流程，不打开串口。save成功后退出维护但不立即运行；下次重启在非维护状态自动执行。电脑session.open会停止并接管，关闭电脑程序不会自动恢复动作。显式program.start在当前会话运行，close/租约到期停止。管理接口为info、download、save、enable、disable、clear、start、stop；enable只启用下次开机，clear删除保存流程。save默认loop=False、autostart=False。
+
+支持RGB、数字IO/PWM、舵机、屏幕文字/图形、wait及when_digital/when_analog；3072个UTF8字节、64源节点、4层条件。Program使用独立静态屏幕/舵机映射快照，运行时临时使用，停止后恢复live映射与休眠的会话音频映射，不自动开始收音。Program不能序列化任意Python函数/if/while、Turtle窗口、音频、图片或云端请求。固件升级一次后，改流程只需要save；严格的参数/硬件资源错误会拒绝或停止，动作不自动重发。详细示例见主开发指南和examples/portable/12～14。
 
 组合外设的调用顺序：**先audio/display/servo.set配置映射 → robot.start退出维护并初始化 → digital/analog/pwm.set设置即时GPIO模式 → 读写动作**。digital/analog/pwm.set立即发送gpio.setup，不是延迟配置；不能在维护状态下与映射set混排。
 
@@ -122,7 +182,7 @@ finish(screen)
 
 代码放在项目 `tests/quick/` 中即可引用 `_turtle`；实际接线继续使用 `_screen_settings.py`。发送时捕获标准Turtle的内部Tk画布，Windows只捕获该画布HWND，不发送窗口标题、工具条、其他应用或整个桌面。窗口须保持可见，不能最小化。关闭窗口才关闭USB会话，发送后等待期间SDK心跳持续运行；如果启用了默认页面，窗口关闭后由固件恢复默认页。
 
-安装图片可选依赖：`python -m pip install -e ".\sdk\python[drawing]"`（从ai_maker目录执行）。依赖Pillow12.3～13；基础GPIO/舵机/页面包功能不要求Pillow，图片功能会延迟导入。Linux还需系统提供Tk，屏幕截图受图形会话权限约束。
+Windows 工程的 [统一安装入口](../../安装Python环境.cmd) 已在根目录 `.venv` 安装绘图依赖。若只分发 SDK wheel，可在同一个课程环境安装 wheel 的 `[drawing]`。依赖 Pillow 12.3～13；图片功能会延迟导入，Linux 还需系统提供 Tk。
 
 API形式：`from ai_robot.drawing import capture_turtle, send_turtle`。`capture_turtle(screen)`返回调用方拥有的Pillow RGB图像；`send_turtle(robot,screen,fit="contain")`捕获后发送并关闭临时图像。它不会帮调用方延长Robot上下文；使用 `_turtle.finish` 才会按窗口生命周期保持连接。
 
@@ -181,11 +241,10 @@ with Robot() as robot:
 
 ## 安装与状态查询
 
-需要 Python 3.11 或以上。从 `ai_maker` 目录执行（下方 `examples` 为保留的高级参数化工具）：
+需要 Python 3.11 或以上。Windows 完整工程先运行一次 [统一安装入口](../../安装Python环境.cmd)，然后从 `ai_maker` 目录执行：
 
 ```powershell
-python -m pip install -e .\sdk\python
-python .\examples\device_status.py --port COM4
+.\.venv\Scripts\python.exe .\examples\device_status.py --port COM4
 ```
 
 端口名称应按实际设备填写。构造 `Robot` 会打开端口、验证设备身份并建立租约，不会自动配置或驱动输出。`port="AUTO"` 仅在系统恰有一个 USB 串口候选时选择它，随后仍验证协议；零个或多个候选会要求显式指定，不逐个探测。驱动开串口时某些开发板可能复位，需按实物确认。

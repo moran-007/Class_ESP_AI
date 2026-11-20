@@ -1,14 +1,28 @@
 # AI小创客本地固件与Python SDK
 
-独立仓库：**Class_ESP_AI**。初学者从 [Python编程与开发指南](docs/开发指南.md) 开始，包含配置、可复制示例和逐项解释；维护者遵循 [功能与文档同步规则](CONTRIBUTING.md)。完整接口见 [SDK函数手册](docs/SDK函数说明与示例_V0.5.md)，固件附件的适用对象、分区和升级前提见 [固件安装与版本兼容](docs/固件安装与版本兼容.md)。
+独立仓库：**Class_ESP_AI**。初学者从 [Python编程与开发指南](docs/开发指南.md) 开始，包含配置、可复制示例和逐项解释；维护者遵循 [功能与文档同步规则](CONTRIBUTING.md)。当前源码接口见 [V0.6 SDK函数手册](docs/SDK函数说明与示例_V0.6.md)，固件附件的适用对象、分区和升级前提见 [固件安装与版本兼容](docs/固件安装与版本兼容.md)。
 
-SDK和固件附件从 [GitHub Releases](https://github.com/moran-007/Class_ESP_AI/releases/tag/v0.5.0) 下载；源码目录不包含本机build/dist产物。0.5.0为教学预发布，音频实物效果待接线验收，见 [更新记录](CHANGELOG.md)。
+当前源码为 **Python SDK 0.8.3 / ESP32-S3 固件 0.8.0**。完整工程在 Windows 只需运行一次 [安装Python环境.cmd](安装Python环境.cmd)，所有示例使用根目录 `.venv`。
+
+**USB Wi-Fi 配网**：双击 [配置硬件.cmd](配置硬件.cmd)，在「串口」页选择端口、输入 Wi-Fi 名称和密码。也可用 `robot.setwifi(name, password)`，控制台会显示连接进度与 IP。配网、查询、清除和屏幕状态页都在 [Wi-Fi 测试目录](tests/wifi/README.md)。
+
+**0.7.0 新增板端计数显示**：`Program.display.counter(...)` 固化后可独立运行。见 [16_counter.py](examples/portable/16_counter.py) 和 [参数/恢复说明](docs/数字累加计数器_V0.7.md)。实际版本和验证状态见 [验证记录](docs/verification.md)。
+
+本地0.7安装包为`sdk/python/dist/ai_maker_robot-0.7.0-py3-none-any.whl`，应用为`build/counter-native-usb/ai_maker_s3.ino.bin`。计数测试的清除和恢复之前备份流程入口在 [tests/counter](tests/counter/README.md)；恢复旧流程与只清除计数是两个不同操作。
+
+SDK **0.6.1** 新增 `robot.program.begin()` / `end()`：屏幕绘图同步预览并录制，结束后 `save(loop=True, autostart=True)`；该录制层兼容0.6.0及以上固件，单用录制无需重刷。完整例子为 [15_screen_record.py](examples/portable/15_screen_record.py)，逐项解释见 [录制与固化说明](docs/绘图录制与固化_V0.6.1.md)。本地安装包为`sdk/python/dist/ai_maker_robot-0.6.1-py3-none-any.whl`，GitHub旧附件不自动升级。
+
+**此前0.6.0已完成本地实现、软件回归、目标编译和COM5升级；屏幕A/B固化、清除复位及原默认页恢复均已通过，实屏效果经用户确认；0.6尚未发布GitHub附件。** 新增`Program`和`robot.program.save(...)`，支持把白名单硬件流程保存到ESP32，启用后下次通电独立执行；电脑连接可接管继续写新代码。不是任意Python函数固化。见 [固化教程](docs/开发指南.md#15-程序固化通电后独立运行)、[MicroPython与当前方案](docs/MicroPython与当前方案.md) 和 [12～14示例](examples/portable/README.md)。屏幕实测文件及清除说明见 [tests/standalone](tests/standalone/README.md)，逐项结果见 [验证记录](docs/verification.md)。首次使用需要支持0.6的固件，之后修改支持流程无需每次重刷。以下0.5发布链接和历史证据继续保留，不代表旧附件已自动升级。
+
+0.6 历史构建产物为 `sdk/python/dist/ai_maker_robot-0.6.0-py3-none-any.whl` 和 `build/standalone-native-usb/ai_maker_s3.ino.bin`，不随源码分发。当前设备升级请使用下面的最新分区说明。
+
+已有 [GitHub Releases](https://github.com/moran-007/Class_ESP_AI/releases/tag/v0.5.0) 附件是历史教学预发布 0.5.0；当前源码不含本机 `build/` 或 `dist/` 产物。需要配网和计数等新功能，请以本分支的源代码、安装入口和固件构建说明为准。
 
 ```powershell
 python -m pip install "https://github.com/moran-007/Class_ESP_AI/releases/download/v0.5.0/ai_maker_robot-0.5.0-py3-none-any.whl"
 ```
 
-当前固件和Python SDK版本：0.5.0。此目录独立于原 AI 机器人项目，包含可编译的 ESP32-S3 板级固件、可安装 SDK、协议、简短示例及测试。本轮不实现 AI 服务器端功能。
+COM5 已升级到 0.8.0 配网固件和自定义 16 MiB 分区，保留了原接线、页面和计数程序。OTA 仅预留槽位；当前仍使用 USB 升级。GitHub 已发布版本仍为 0.5.0。
 
 V0.5新增 **INMP441收音、MAX98357A播放、数字/ADC/PWM分开接口及可跨电脑安装的SDK**。先按实际接线改 [portable示例](examples/portable/README.md) 的COM和IO，再双击 `运行音频测试.cmd`。本地文件、录音和显式URL音频统一为16kHz/mono/PCM16LE的AudioClip；不包含AI服务器。详见 [IO与音频测试说明](docs/数字模拟IO与音频测试_V0.5.md) 和 [跨电脑安装](docs/跨电脑安装与直接导入_V0.5.md)。当前COM5已更新V0.5，仅验证音频配置与资源保护；实际收音/出声待用户接线测试。
 
@@ -66,7 +80,8 @@ with connect("COM5") as robot:
 | 数字/模拟IO | digital数字量、analog ADC、PWM占空比独立；真正DAC模拟电压输出不支持 |
 | 本地/云端音频数据 | 相同AudioClip，严格PCM/WAV、显式有界HTTP音频URL；非AI云服务 |
 | SD、任意学生网页上传 | 尚未实现，能力声明false |
-| AI、云端、Wi-Fi、OTA | 不在本轮实现范围 |
+| Wi-Fi | USB 配网、状态和 IPv4 查询、开机重连 |
+| AI、云端、无线控制、OTA | 未实现 |
 
 普通 GPIO、舵机和屏幕SPI信号映射现已实现；I²S音频已接入当前会话的共享时钟映射，退出会话清除，不自动收音。屏幕SPI目前独占，不与其他SPI设备共享。回执不能替代实际屏幕图像验收。
 
@@ -96,7 +111,7 @@ ai_maker/
 
 已安装并用于验证的工具链：Arduino CLI 1.4.1、Arduino-ESP32 3.3.12、ArduinoJson 7.4.3；主机测试使用 C++17 编译器。Python 代码要求 3.11 或以上，本机测试使用 Python 3.14。
 
-参考构建目标为 ESP32-S3、16 MB Flash、OPI PSRAM，`fatflash` 16 MB 参考分区。默认原生 USB，启用 Hardware CDC；UART 构建使用开发板 USB 转串口的 UART0。两种镜像的通信端点不同，不能仅按文件名混用。
+构建目标为 ESP32-S3、16 MiB Flash、OPI PSRAM，使用 [自定义教学分区](docs/固件安装与版本兼容.md)。默认原生 USB，启用 Hardware CDC；UART 构建使用开发板 USB 转串口的 UART0。两种镜像的通信端点不同，不能仅按文件名混用。已有数据的板不要使用 Arduino 默认 Upload，以免写入项目 NVS。
 
 新工程没有依赖旧 AI 模型、旧密钥或服务器。虽然基础程序体积较小，没有存储更小开发板的完整验证记录，不能把参考镜像直接当作通用 S3 固件。
 
@@ -117,13 +132,13 @@ ai_maker/
 
 ## 安装SDK和查询设备
 
-建议使用新虚拟环境：
+Windows 上双击 [安装Python环境.cmd](安装Python环境.cmd)。安装只使用项目根目录的 `.venv`；再次运行会先检查，环境正常就复用，不会重装。运行示例、配置窗口、页面编辑器和本机测试都用这一份环境。
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -e ".\sdk\python[drawing]"
 .\.venv\Scripts\python.exe .\examples\device_status.py --port COM5
 ```
+
+用 VS Code 打开 `ai_maker` 文件夹，选择 `.venv/Scripts/python.exe`。如果之前选过旧解释器，切换一次即可；也可在「运行和调试」选「AI 小创客：运行当前 Python 文件」，它固定使用项目环境。
 
 把 COM5 换为实际端口。查询也会连接并握手，但不会配置普通输出或移动舵机。`AUTO` 只有在唯一 USB 串口候选时才选择，不自动遍历控制其他串口设备。
 

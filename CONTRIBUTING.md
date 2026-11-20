@@ -29,14 +29,14 @@
 
 ## 本机验证命令
 
-从项目根目录运行。Windows 需要 PowerShell、Arduino CLI、固定版本库和 C++17 编译器；`g++` 可通过 PATH 或参数指定。SDK 开发环境先安装 `python -m pip install -e "./sdk/python[drawing]"`。
+从项目根目录运行。Windows 需要 PowerShell、Arduino CLI、固定版本库和 C++17 编译器；`g++` 可通过 PATH 或参数指定。先用根目录 [安装Python环境.cmd](安装Python环境.cmd) 安装一次，默认使用根目录 `.venv` 中的 SDK。
 
 ```powershell
-./scripts/test.ps1 -Python python -Compiler g++
+./scripts/test.ps1 -Compiler g++
 ./firmware/build.ps1 -Transport native-usb -BuiltinRgbPin 48
 ```
 
-第一项包括 C++ 核心/驱动故障测试、SDK 与同一核心联调、配置课程和网页编辑器测试。旧 `tests/quick/` 学员文件默认不作为固定回归基线。第二项只编译不烧录，生成的分区是 16MiB fatflash **参考**，不能据此直接覆盖另一块板的分区。
+第一项包括 C++ 核心/驱动故障测试、SDK 与同一核心联调、配置课程和网页编辑器测试。旧 `tests/quick/` 学员文件默认不作为固定回归基线。第二项只编译不烧录，生成项目自定义的 16 MiB 分区；已有设备的升级须按 [安装与兼容说明](docs/固件安装与版本兼容.md) 核对布局并备份，不能直接覆盖。
 
 只改文档时，检查全部示例语法、文件链接、参数与当前 SDK 签名；无需操作实际外设。原生 USB 是当前音频流支持路径，UART115200 构建不声明音频能力。
 

@@ -52,6 +52,18 @@ class FileHardware final : public FakeHardware {
     if (!existing) return true;
     existing.close(); return std::remove(name.c_str()) == 0;
   }
+  std::string loadProgramState() override {
+    if (path_.empty()) return FakeHardware::loadProgramState();
+    std::ifstream file(path_ + ".program", std::ios::binary);
+    if (!file) return "";
+    return std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+  }
+  bool saveProgramState(const std::string& value) override {
+    if (path_.empty()) return FakeHardware::saveProgramState(value);
+    std::ofstream file(path_ + ".program", std::ios::binary | std::ios::trunc);
+    if (!file || !(file << value)) return false;
+    file.close(); return static_cast<bool>(file);
+  }
 
  private:
   std::string path_;

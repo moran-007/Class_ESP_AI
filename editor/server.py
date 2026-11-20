@@ -86,6 +86,8 @@ class EditorState:
                 return self.status()
             if method == "GET" and path == "/api/project":
                 return {"project": self.require_robot().pages.download()}
+            if method == "GET" and path == "/api/wifi":
+                return self.require_robot().wifi.status()
             if method != "POST":
                 raise EditorError("接口不存在。", 404)
             if path == "/api/connect":
@@ -105,6 +107,12 @@ class EditorState:
                 keys(body, ())
                 self.close()
                 return self.status()
+            if path == "/api/wifi/connect":
+                keys(body, ("ssid", "password"))
+                return self.require_robot().wifi.connect(body.get("ssid"), body.get("password"))
+            if path == "/api/wifi/clear":
+                keys(body, ())
+                return self.require_robot().wifi.clear()
             if path == "/api/configure_display":
                 keys(body, ("panel", "sck", "mosi", "cs", "dc", "rst", "backlight", "rotation", "invert", "brightness"))
                 robot = self.require_robot()

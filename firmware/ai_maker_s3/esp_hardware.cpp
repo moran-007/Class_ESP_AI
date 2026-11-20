@@ -31,6 +31,18 @@ bool EspHardware::saveState(const std::string& state) {
   return preferences_.putString("state", state.c_str()) == state.size();
 }
 
+std::string EspHardware::loadProgramState() {
+  if (!storage_ready_) return "storage unavailable";
+  return preferences_.getString("program", "").c_str();
+}
+
+bool EspHardware::saveProgramState(const std::string& state) {
+  if (!storage_ready_ || state.empty() || state.size() > 3584) return false;
+  // A single independent NVS value contains the program and its boot policy.
+  // Never erase the namespace, existing mappings or saved screen pages.
+  return preferences_.putString("program", state.c_str()) == state.size();
+}
+
 std::string EspHardware::loadPageSlot(int slot) {
   if (!storage_ready_ || slot < 0 || slot > 1) return "";
   const char* key = slot == 0 ? "page0" : "page1";

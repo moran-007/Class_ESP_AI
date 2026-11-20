@@ -16,6 +16,7 @@ from test_sdk import ScriptTransport
 from test_native_integration import ProcessTransport
 
 QUICK = Path(__file__).resolve().parents[3] / 'tests/quick'
+PORTABLE = Path(__file__).resolve().parents[3] / 'examples/portable'
 
 
 class DisplaySDKTests(unittest.TestCase):
@@ -165,8 +166,10 @@ class DisplayNativeTests(unittest.TestCase):
         sys.path.insert(0, str(QUICK))
         settings = SimpleNamespace(SCREEN=dict(panel='st7789_240x320', sck=4, mosi=5,
             cs=15, dc=7, rst=6, backlight=16, rotation=1, invert=None, brightness=None), BACKLIGHT=16)
-        for filename in ('screen_colors.py', 'screen_text.py', 'screen_backlight.py'):
-            with self.subTest(filename=filename):
+        # screen_text.py is a learner-owned scratch file. Exercise the shipped
+        # text example instead, keeping configuration/order/close assertions.
+        for script in (QUICK / 'screen_colors.py', PORTABLE / '11_display.py', QUICK / 'screen_backlight.py'):
+            with self.subTest(filename=script.name):
                 wire = ProcessTransport(os.environ['AI_MAKER_NATIVE'])
                 self.addCleanup(wire.close)
                 sent = []
@@ -178,7 +181,7 @@ class DisplayNativeTests(unittest.TestCase):
                 with patch.dict(sys.modules, {'_screen_settings': settings}), \
                      patch('ai_robot.client.SerialTransport', return_value=wire), \
                      patch.object(Robot, 'wait', return_value=None), redirect_stdout(io.StringIO()):
-                    runpy.run_path(str(QUICK / filename), run_name='__main__')
+                    runpy.run_path(str(script), run_name='__main__')
                 operations = [r['op'] for r in sent]
                 self.assertLess(operations.index('config.apply'), operations.index('maintenance.exit'))
                 self.assertLess(operations.index('maintenance.exit'), operations.index('display.begin'))

@@ -6,6 +6,7 @@
 #include <string>
 #include "page_model.h"
 #include "audio_types.h"
+#include "program_model.h"
 
 namespace ai_maker {
 
@@ -47,6 +48,8 @@ class Hardware {
   virtual std::string bootId() const = 0;
   virtual std::string loadState() = 0;
   virtual bool saveState(const std::string& state) = 0;
+  virtual std::string loadProgramState() { return ""; }
+  virtual bool saveProgramState(const std::string&) { return false; }
   virtual std::string loadPageSlot(int) { return ""; }
   virtual bool savePageSlot(int, const std::string&) { return false; }
   virtual bool erasePageSlot(int) { return false; }
@@ -74,6 +77,12 @@ class Hardware {
   virtual bool finishAudioPlayback() { return false; }
   virtual bool stopAudioIO() { return true; }
   virtual bool releaseAudio() { return true; }
+  virtual bool wifiAvailable() const { return false; }
+  virtual bool loadWifi(std::string&) { return false; }
+  virtual bool saveWifi(const std::string&) { return false; }
+  virtual bool stopWifi() { return false; }
+  virtual bool startWifi(const std::string&, const std::string&) { return false; }
+  virtual std::string wifiIp(const std::string&) { return ""; }
 };
 
 class DeviceCore {
@@ -123,13 +132,48 @@ class DeviceCore {
   bool audio_cleanup_fault_ = false;
   bool audio_recording_ = false, audio_playing_ = false;
   uint32_t audio_read_bytes_ = 0, audio_written_bytes_ = 0;
+  ProgramModel program_;
+  bool program_enabled_ = false, program_loop_ = false, program_running_ = false;
+  bool program_boot_pending_ = false, program_waiting_ = false, program_context_active_ = false;
+  bool internal_program_action_ = false;
+  size_t program_pc_ = 0;
+  uint32_t program_wait_since_ = 0, program_wait_ms_ = 0;
+  std::string program_error_;
+  std::array<ServoSpec, kMaxServos> program_previous_servos_{};
+  size_t program_previous_servo_count_ = 0;
+  DisplaySpec program_previous_display_;
+  AudioSpec program_previous_audio_;
+  struct ProgramCounter {
+    bool active = false;
+    std::string name;
+    int64_t value = 0;
+    uint32_t step = 1, interval_ms = 1000, last_ms = 0;
+    int x = 0, y = 0, width = 0, height = 0;
+    uint16_t color = 0xffff, background = 0;
+  } program_counter_;
+
+  struct WifiProfile {
+    std::string ssid, password;
+  } wifi_saved_, wifi_candidate_;
+  std::string wifi_ip_;
+  const char* wifi_state_ = "unconfigured";
+  const char* wifi_provisioning_ = "idle";
+  const char* wifi_error_ = "";
+  bool wifi_connecting_ = false, wifi_retry_ = false;
+  uint32_t wifi_since_ = 0, wifi_last_sample_ = 0;
+
+  void loadWifi();
+  void tickWifi(uint32_t now_ms);
+  void startWifi(const WifiProfile& profile, uint32_t now_ms);
+  void failWifi(const char* error, uint32_t now_ms);
+  void dispatchWifi(const std::string& op, JsonObjectConst args, JsonDocument& response, uint32_t now_ms);
 
   void dispatch(JsonObjectConst request, JsonDocument& response, uint32_t now_ms);
   bool stopOutputs();
   ServoSpec* findServo(const std::string& name);
   const ServoSpec* servoForPin(int pin) const;
   bool parseConfig(JsonObjectConst config, std::array<ServoSpec, kMaxServos>& out,
-                   size_t& count, DisplaySpec& display, std::string& error) const;
+                   size_t& count, DisplaySpec& display, std::string& error, bool ignore_audio = false) const;
   void writeConfig(JsonObject target) const;
   std::string stateBlob(bool maintenance, uint32_t revision,
                         const std::array<ServoSpec, kMaxServos>& servos, size_t count,
@@ -147,6 +191,17 @@ class DeviceCore {
   bool audioPin(int pin) const;
   bool releaseAudioDevice(bool clear_config);
   void clearAudioSession();
+  void loadProgram();
+  void writeProgramInfo(JsonObject target) const;
+  void dispatchProgram(const std::string& op, JsonObjectConst args, JsonDocument& response, uint32_t now_ms);
+  bool validateProgram(const std::string& source, ProgramModel& model, std::string& error) const;
+  std::string programState(const ProgramModel& model, bool enabled, bool loop) const;
+  bool startProgram();
+  void tickProgram(uint32_t now_ms);
+  void failProgram(const std::string& error);
+  void restoreProgramConfiguration();
+  bool renderProgramCounter();
+  void tickProgramCounter(uint32_t now_ms);
 };
 
 }  // namespace ai_maker

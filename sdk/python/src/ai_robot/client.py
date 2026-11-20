@@ -19,10 +19,14 @@ from .errors import (
 from .transport import SerialTransport, Transport
 from .pages import Pages
 from .audio import Audio
+from .program import Programs
+from .wifi import Wifi
 
 MAX_LINE = 4096
 PROTOCOL_VERSION = 1
 FAMILY = "ai-maker-s3"
+READ_ONLY_OPS = frozenset({"device.info", "device.status", "pins.list", "config.get",
+                           "program.info", "pages.info", "audio.info", "wifi.status"})
 
 
 def _integer(value: int, label: str, minimum: int, maximum: int) -> int:
@@ -40,8 +44,9 @@ def _name(value: str) -> str:
 class Robot:
     """Connect to one local teaching device.
 
-    Constructing this class opens the port, queries identity and opens a lease;
-    it does not configure or drive any output. Actions are never retried.
+    Opens the port, queries identity and normally acquires a control lease.
+    With read_only=True it skips the lease and permits sessionless queries.
+    Actions are never retried.
     Injected transports transfer their ownership to this instance.
     """
 
@@ -49,9 +54,12 @@ class Robot:
         self, connection: str = "usb", port: str = "AUTO", *,
         baudrate: int = 115200, timeout: float = 2.0,
         transport: Transport | None = None, heartbeat_interval: float | None = 1.0,
+        read_only: bool = False,
     ):
         if connection != "usb":
             raise UnsupportedCapability("首版仅支持本地 USB，不包含 AI 或云连接")
+        if type(read_only) is not bool:
+            raise ValueError("read_only 必须是布尔值")
         if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout <= 0:
             raise ValueError("timeout 必须为正的有限秒数")
         if heartbeat_interval is not None and (
@@ -71,6 +79,7 @@ class Robot:
         self._counter = 0
         self._session = uuid.uuid4().hex
         self._session_open = False
+        self._read_only = read_only
         self._thread: threading.Thread | None = None
         self._transport = transport if transport is not None else SerialTransport(port, baudrate, self._timeout)
         self.gpio = _GPIO(self)
@@ -85,6 +94,8 @@ class Robot:
         self.display = _Display(self)
         self.pages = Pages(self)
         self.audio = Audio(self)
+        self.program = Programs(self)
+        self.wifi = Wifi(self)
         self.web = _Unavailable("student_web")
         self.ai = _Unavailable("ai")
         try:
@@ -93,6 +104,8 @@ class Robot:
                 raise ProtocolError("连接的设备不是兼容的 ai-maker-s3 协议 v1 固件")
             if not isinstance(self._info.get("boot_id"), str) or not self._info["boot_id"]:
                 raise ProtocolError("设备未提供有效 boot_id")
+            if self._read_only:
+                return
             opened = self._request("session.open")
             if opened.get("session_id") != self._session or type(opened.get("lease_ms")) is not int or opened["lease_ms"] <= 0:
                 raise ProtocolError("设备会话回执不合法")
@@ -149,6 +162,9 @@ class Robot:
                 raise ConnectionLostError("连接已经关闭")
             if self._fault is not None and not closing:
                 raise ConnectionLostError("心跳或通信已失败，请显式重新连接") from self._fault
+            if self._read_only and op not in READ_ONLY_OPS:
+                raise UnsupportedCapability("只读 USB 连接不能修改配置或控制输出")
+            record_ticket = self.program._prepare_record_request(op, {} if args is None else args)
             self._counter += 1
             request_id = f"r{self._counter}"
             payload = {
@@ -156,7 +172,9 @@ class Robot:
                 "request_id": request_id, "session_id": self._session,
                 "op": op, "args": {} if args is None else args,
             }
-            encoded = json.dumps(payload, ensure_ascii=True, separators=(",", ":"), allow_nan=False).encode("utf-8")
+            # Saved flows are bounded in UTF8 bytes; escaping every Chinese
+            # character would expand valid 3072-byte programs beyond JSONL.
+            encoded = json.dumps(payload, ensure_ascii=op not in ("program.save", "wifi.connect"), separators=(",", ":"), allow_nan=False).encode("utf-8")
             if len(encoded) > MAX_LINE:
                 raise ValueError("请求超过协议单行 4096 字节限制")
             deadline = time.monotonic() + self._timeout
@@ -191,12 +209,18 @@ class Robot:
                             raise DeviceError(response["code"], message, request_id)
                         if response["code"] != "OK" or not isinstance(response.get("data"), dict):
                             raise ProtocolError("成功响应必须包含 code=OK 和 data 对象")
+                        self.program._commit_record_request(record_ticket)
                         return response["data"]
-            except (DeviceError, RequestTimeout, ProtocolError):
+            except (DeviceError, RequestTimeout, ProtocolError) as exc:
+                self.program._record_failure(exc)
                 raise
             except Exception as exc:
+                self.program._record_failure(exc)
                 self._fault = exc
                 raise ConnectionLostError("USB 通信失败，执行结果可能未知；不会自动重连或重发动作") from exc
+            except BaseException as exc:
+                self.program._record_failure(exc)
+                raise
 
     def get_info(self) -> dict[str, Any]:
         info = self._request("device.info")
@@ -207,6 +231,21 @@ class Robot:
 
     def get_status(self) -> dict[str, Any]:
         return self._request("device.status")
+
+    def setwifi(self, name: str, password: str, *, progress: bool = True) -> dict[str, Any]:
+        """Provision Wi-Fi, reporting progress to stdout unless disabled."""
+        return self.wifi._connect_and_wait(name, password, progress=progress)
+
+    def listwifi(self) -> list[dict[str, str]]:
+        """Return the board's current Wi-Fi network and IPv4, or an empty list."""
+        status = self.wifi.status()
+        if status["state"] != "connected" or not status["ip"]:
+            return []
+        return [{"ssid": status["ssid"], "ip": status["ip"]}]
+
+    def clearwifi(self) -> dict[str, Any]:
+        """Forget the board's saved Wi-Fi credentials and close its Wi-Fi link."""
+        return self.wifi.clear()
 
     def list_pins(self) -> list[dict[str, Any]]:
         if self._info.get('capabilities', {}).get('pin_pagination') is True:
@@ -266,21 +305,32 @@ class Robot:
         """Wait while the background heartbeat runs; surface disconnects promptly."""
         if isinstance(seconds, bool) or not isinstance(seconds, (int, float)) or not math.isfinite(seconds) or seconds < 0:
             raise ValueError("等待时间必须为不小于 0 的有限秒数")
-        deadline = time.monotonic() + seconds
-        while True:
-            if self._closed or self._closing:
-                raise ConnectionLostError("连接已经关闭")
-            if self._fault is not None:
-                raise ConnectionLostError("心跳或通信已失败，请显式重新连接") from self._fault
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                return
-            self._stop.wait(min(remaining, 0.1))
+        with self._lock:
+            record_ticket = self.program._prepare_record_wait(seconds)
+        error = None
+        try:
+            deadline = time.monotonic() + seconds
+            while True:
+                if self._closed or self._closing:
+                    raise ConnectionLostError("连接已经关闭")
+                if self._fault is not None:
+                    raise ConnectionLostError("心跳或通信已失败，请显式重新连接") from self._fault
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    return
+                self._stop.wait(min(remaining, 0.1))
+        except BaseException as exc:
+            error = exc
+            raise
+        finally:
+            with self._lock:
+                self.program._finish_record_wait(record_ticket, error)
 
     def close(self) -> None:
         if self._closed:
             return
         self._closing = True
+        self.program.cancel()
         self._stop.set()
         if self._thread is not None and self._thread is not threading.current_thread():
             self._thread.join(self._timeout + 1.0)

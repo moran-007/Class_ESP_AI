@@ -110,7 +110,7 @@ bool DeviceCore::showPage(const std::string& id, bool standalone) {
 }
 
 bool DeviceCore::resumeDefaultPage() {
-  if (maintenance_ || storage_fault_ || !session_.empty() || !page_settings_.startup_enabled) return true;
+  if (maintenance_ || storage_fault_ || !session_.empty() || program_context_active_ || program_boot_pending_ || !page_settings_.startup_enabled) return true;
   page_text_overrides_.clear();
   return showPage(page_settings_.default_page, true);
 }

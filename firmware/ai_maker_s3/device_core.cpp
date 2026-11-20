@@ -132,10 +132,11 @@ bool DeviceCore::reservedPin(int pin) {
 }
 bool DeviceCore::adcPin(int pin) { return pin >= 1 && pin <= 20 && !reservedPin(pin); }
 void DeviceCore::begin() {
+  if (hardware_.wifiAvailable()) loadWifi();
   // WS2812 latches can outlive an MCU reset or a diagnostic app replacement.
   led_driver_ok_ = hardware_.writeLed(0, 0, 0);
   const std::string state = hardware_.loadState();
-  if (state.empty()) return;
+  if (state.empty()) { loadProgram(); return; }
   JsonDocument doc; std::array<ServoSpec, kMaxServos> next{}; DisplaySpec next_display;
   size_t count = 0; std::string error;
   const bool valid = state.size() <= kMaxLine && singleObject(state) &&
@@ -152,10 +153,13 @@ void DeviceCore::begin() {
     maintenance_ = storage_fault_ = true;
     return;
   }
-  if (!maintenance_) resumeDefaultPage();
+  loadProgram();
+  if (!maintenance_ && !program_boot_pending_) resumeDefaultPage();
   // Restoring a mapping never attaches LEDC or moves a servo.
 }
 bool DeviceCore::stopOutputs() {
+  program_running_ = program_boot_pending_ = program_waiting_ = false;
+  program_counter_.active = false;
   const bool audio_stopped = releaseAudioDevice(false);
   bool display_stopped = true;
   if (display_active_ || !display_driver_ok_) {
@@ -179,13 +183,18 @@ bool DeviceCore::stopOutputs() {
     if (servo.active) hardware_.releasePin(servo.pin);
     servo.active = false;
   }
-  return led_driver_ok_ && display_stopped && audio_stopped;
+  const bool stopped = led_driver_ok_ && display_stopped && audio_stopped;
+  if (stopped) restoreProgramConfiguration();
+  return stopped;
 }
 void DeviceCore::tick(uint32_t now_ms) {
   if (!session_.empty() && static_cast<uint32_t>(now_ms - last_seen_ms_) >= kLeaseMs) {
     const bool stopped = stopOutputs(); session_.clear(); clearPageUpload(); clearAudioSession();
+    program_previous_audio_ = AudioSpec{};  // Even failed cleanup cannot transfer session audio ownership.
     if (stopped) resumeDefaultPage();
   }
+  tickProgram(now_ms);
+  if (hardware_.wifiAvailable()) tickWifi(now_ms);
 }
 ServoSpec* DeviceCore::findServo(const std::string& name) {
   for (size_t i = 0; i < servo_count_; ++i) if (servos_[i].name == name) return &servos_[i];
@@ -196,7 +205,7 @@ const ServoSpec* DeviceCore::servoForPin(int pin) const {
   return nullptr;
 }
 bool DeviceCore::parseConfig(JsonObjectConst config, std::array<ServoSpec, kMaxServos>& out,
-                            size_t& count, DisplaySpec& display, std::string& error) const {
+                            size_t& count, DisplaySpec& display, std::string& error, bool ignore_audio) const {
   if (!onlyKeys(config, {"schema_version", "servos", "display"}) || !integer(config["schema_version"]) ||
       config["schema_version"].as<int>() != 1 || !config["servos"].is<JsonArrayConst>()) {
     error = "Expected schema_version 1 and a servos array without unknown fields"; return false;
@@ -254,7 +263,7 @@ bool DeviceCore::parseConfig(JsonObjectConst config, std::array<ServoSpec, kMaxS
       for (size_t j = 0; j < count; ++j) if (pins[i] == out[j].pin) { error = "Display GPIO conflicts with servo"; return false; }
     }
   }
-  if (audio_.enabled) {
+  if (!ignore_audio && audio_.enabled) {
     for (size_t i = 0; i < count; ++i) if (audioPin(out[i].pin)) {
       error = "Servo GPIO conflicts with this session's I2S audio"; return false;
     }
@@ -272,7 +281,12 @@ std::string DeviceCore::stateBlob(bool maintenance, uint32_t revision,
   const PageSettings& saved = pages ? *pages : page_settings_;
   state["state_version"] = saved.slot >= 0 ? 2 : 1;
   state["revision"] = revision; state["maintenance"] = maintenance;
-  encodeConfig(state["config"].to<JsonObject>(), servos, count, display);
+  // A failed stop keeps the program's temporary mapping alive for cleanup.
+  // Maintenance persistence must still save the original live configuration.
+  encodeConfig(state["config"].to<JsonObject>(),
+      program_context_active_ ? program_previous_servos_ : servos,
+      program_context_active_ ? program_previous_servo_count_ : count,
+      program_context_active_ ? program_previous_display_ : display);
   if (saved.slot >= 0) {
     auto page = state["pages"].to<JsonObject>();
     page["slot"] = saved.slot; page["crc32"] = saved.crc32;
@@ -286,7 +300,7 @@ std::string DeviceCore::process(const std::string& line, uint32_t now_ms) {
   response["kind"] = "response"; response["protocol_version"] = 1;
   response["request_id"] = ""; response["ok"] = true; response["code"] = "OK";
   if (line.size() > kMaxLine) fail(response, "LINE_TOO_LONG", "Control line exceeds 4096 bytes");
-  else if (!singleObject(line) || deserializeJson(request, line, DeserializationOption::NestingLimit(8))) {
+  else if (!singleObject(line) || deserializeJson(request, line, DeserializationOption::NestingLimit(24))) {
     fail(response, "INVALID_REQUEST", "Expected one complete JSON object");
   } else {
     const auto id = request["request_id"];
@@ -305,7 +319,7 @@ void DeviceCore::dispatch(JsonObjectConst request, JsonDocument& response, uint3
   const auto args = request["args"].as<JsonObjectConst>();
   auto data = response["data"].to<JsonObject>();
   if (op == "device.info") {
-    data["firmware_family"] = "ai-maker-s3"; data["firmware_version"] = "0.5.0";
+    data["firmware_family"] = "ai-maker-s3"; data["firmware_version"] = "0.8.0";
     data["protocol_version"] = 1; data["target"] = "esp32s3";
     data["board_profile"] = std::string("s3-n16r8-rgb") + std::to_string(kBuiltinRgbPin) + "-v1";
     data["boot_id"] = hardware_.bootId();
@@ -321,6 +335,9 @@ void DeviceCore::dispatch(JsonObjectConst request, JsonDocument& response, uint3
     caps["digital_input"] = true; caps["digital_output"] = true;
     caps["analog_input"] = true; caps["analog_output"] = false; caps["pwm_output"] = true;
     caps["pin_pagination"] = true;
+    caps["standalone_program"] = true;
+    caps["standalone_counter"] = true;
+    caps["wifi_provisioning"] = hardware_.wifiAvailable();
     auto panels = data["display_panels"].to<JsonArray>();
     for (const auto* panel : {"st7789_240x320", "st7789_240x240", "st7735s_128x160"}) panels.add(panel);
     auto builtin = data["builtin_led"].to<JsonObject>();
@@ -329,6 +346,7 @@ void DeviceCore::dispatch(JsonObjectConst request, JsonDocument& response, uint3
     for (const auto* name : {"sd", "student_web", "ai"}) caps[name] = false;
     auto limits = data["limits"].to<JsonObject>();
     limits["line_bytes"] = kMaxLine; limits["servos"] = kMaxServos;
+    limits["program_bytes"] = kMaxProgramBytes; limits["program_steps"] = 64;
     limits["pwm_channels"] = display_.enabled && display_.backlight >= 0 ? 3 : 4;
     limits["display_text_bytes"] = 192;
     limits["display_bitmap_pixels"] = 384;
@@ -341,6 +359,7 @@ void DeviceCore::dispatch(JsonObjectConst request, JsonDocument& response, uint3
     data["session_active"] = !session_.empty(); data["maintenance"] = maintenance_;
     data["storage_fault"] = storage_fault_; data["config_revision"] = revision_;
     writeAudioInfo(data["audio"].to<JsonObject>());
+    writeProgramInfo(data["program"].to<JsonObject>());
     auto led = data["led"].to<JsonObject>();
     led["red"] = led_[0]; led["green"] = led_[1]; led["blue"] = led_[2];
     led["driver_ok"] = led_driver_ok_; led["physical_verified"] = false;
@@ -405,8 +424,10 @@ void DeviceCore::dispatch(JsonObjectConst request, JsonDocument& response, uint3
     return;
   }
   if (op == "config.get") { data["revision"] = revision_; writeConfig(data["config"].to<JsonObject>()); return; }
+  if (op == "wifi.status") return dispatchWifi(op, args, response, now_ms);
   if (op == "pages.info") return writePagesInfo(data);
   if (op == "audio.info") return writeAudioInfo(data);
+  if (op == "program.info") return writeProgramInfo(data);
   const auto sessionValue = request["session_id"];
   if (!text(sessionValue, 40)) {
     return fail(response, "SESSION_REQUIRED", "A session_id of 1 to 40 bytes is required");
@@ -414,16 +435,18 @@ void DeviceCore::dispatch(JsonObjectConst request, JsonDocument& response, uint3
   const std::string session = sessionValue.as<std::string>();
   if (op == "session.open") {
     if (!session_.empty() && session_ != session) return fail(response, "DEVICE_BUSY", "Another session owns the device");
-    if (session_.empty() && standalone_active_ && !stopOutputs())
+    if (session_.empty() && (standalone_active_ || program_running_ || program_boot_pending_ || program_context_active_) && !stopOutputs())
       return fail(response, "HARDWARE_ERROR", "Default page cleanup failed before taking control");
     session_ = session; last_seen_ms_ = now_ms;
     data["session_id"] = session_; data["lease_ms"] = kLeaseMs; return;
   }
   if (session_.empty() || session != session_) return fail(response, "SESSION_REQUIRED", "Session is missing, expired or not the owner");
-  last_seen_ms_ = now_ms;
+  if (!internal_program_action_) last_seen_ms_ = now_ms;
   if (op == "session.heartbeat") { data["lease_ms"] = kLeaseMs; return; }
+  if (op == "wifi.connect" || op == "wifi.clear") return dispatchWifi(op, args, response, now_ms);
   if (op == "session.close") {
     const bool stopped = stopOutputs(); session_.clear(); clearPageUpload(); clearAudioSession();
+    program_previous_audio_ = AudioSpec{};
     if (!stopped) return fail(response, "HARDWARE_ERROR", "Session closed; output cleanup failed, check device.status");
     if (!resumeDefaultPage()) return fail(response, "HARDWARE_ERROR", "Session closed; default page failed to resume");
     data["closed"] = true; return;
@@ -472,6 +495,9 @@ void DeviceCore::dispatch(JsonObjectConst request, JsonDocument& response, uint3
       return fail(response, "STORAGE_ERROR", "Maintenance flag could not be cleared");
     maintenance_ = false; data["maintenance"] = false; return;
   }
+  if (op.compare(0, 8, "program.") == 0) return dispatchProgram(op, args, response, now_ms);
+  if (program_context_active_ && !internal_program_action_)
+    return fail(response, "RESOURCE_CONFLICT", "Saved program owns outputs; call program.stop before live operations");
   if (op.compare(0, 6, "pages.") == 0) return dispatchPages(op, args, response);
   if (op.compare(0, 6, "audio.") == 0) return dispatchAudio(op, args, response);
   if (op == "display.release") return dispatchDisplay(op, args, response);

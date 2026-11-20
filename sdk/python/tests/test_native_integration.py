@@ -15,9 +15,9 @@ from ai_robot import Robot, DeviceError
 
 
 class ProcessTransport:
-    def __init__(self, executable):
+    def __init__(self, executable, *arguments):
         self.process = subprocess.Popen(
-            [str(executable)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            [str(executable), *map(str, arguments)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=None, bufsize=0,
         )
         self._queue = queue.Queue()

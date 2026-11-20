@@ -17,7 +17,6 @@ void setup() {
   incoming.reserve(ai_maker::kMaxLine + 1);
   hardware.begin();
   device.begin();
-  // No Wi-Fi initialization, boot motion, serial monitor or blocking USB wait.
 }
 
 void loop() {

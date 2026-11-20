@@ -8,6 +8,15 @@
 class FakeHardware : public ai_maker::Hardware {
  public:
   std::string state;
+  std::string program_state;
+  bool program_save_ok = true;
+  size_t program_saves = 0;
+  std::string loadProgramState() override { return program_state; }
+  bool saveProgramState(const std::string& value) override {
+    ++program_saves;
+    if (!program_save_ok) return false;
+    program_state = value; return true;
+  }
   std::array<std::string, 2> page_slots;
   bool page_save_ok = true, page_erase_ok = true;
   bool save_ok = true;

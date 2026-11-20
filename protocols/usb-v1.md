@@ -1,6 +1,6 @@
 # 本地 USB 协议 v1
 
-固件家族 `ai-maker-s3`，当前版本 `0.5.0`，协议仍为 v1；基础操作仍兼容 SDK 0.2.0，页面/图片使用SDK0.4.0。实现本地板级控制、SPI屏幕、页面保存和默认显示，新增INMP441/MAX98357A音频驱动，没有AI、Wi-Fi和任意学生网页宿主。音频合同见 [audio-v1.md](audio-v1.md)。Arduino-ESP32 3.3.12；默认原生 USB CDC，可显式构建 USB 转 UART 115200 版本。屏幕配置和基础操作见 [display-v1.md](display-v1.md)，页面与位图合同见 [pages-v1.md](pages-v1.md)。
+固件家族 `ai-maker-s3`，当前源码版本 `0.8.0`，协议仍为 v1。基础能力保持兼容；屏幕、页面、音频、固化和配网分别通过 `device.info.capabilities` 查询。Arduino-ESP32 3.3.12；默认原生 USB CDC，可显式构建 USB 转 UART 115200 版本。参见 [屏幕](display-v1.md)、[页面](pages-v1.md)、[音频](audio-v1.md)、[固化](program-v1.md) 和 [Wi-Fi 配网](wifi-v1.md)。
 
 V0.4新增能力 `pages/page_images/page_startup/display_bitmap=true`。`display.bitmap`以RGB565大端base64传输最多384像素小块；SDK据实际屏幕分块整帧。`pages.*`为不执行代码的JSON页面传输、保存和显示。未持有控制会话且非维护时，可显示明确启用的默认页；关闭会话/租约到期会先释放运行输出，再恢复默认页。进入会话后默认页让出屏幕。此行为不包含舵机程序自动恢复。
 

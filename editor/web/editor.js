@@ -235,6 +235,50 @@
     } catch (e) { notice(e.message, "error"); } finally { if (bitmap) bitmap.close(); event.target.value = ""; }
   });
   async function api(path, data) { const response = await fetch(path, {method: data === undefined ? "GET" : "POST", headers: {"X-Editor-Token": TOKEN, ...(data === undefined ? {} : {"Content-Type": "application/json"})}, ...(data === undefined ? {} : {body: JSON.stringify(data)})}); const result = await response.json(); if (!response.ok) throw new Error(result.error || "请求失败。"); return result; }
+  let wifiRun = 0;
+  let wifiBusy = false;
+  const wifiSupported = () => !!device?.connected && device.info.capabilities?.wifi_provisioning === true;
+  function wifiButtons() {
+    for (const id of ["wifi-connect", "wifi-refresh", "wifi-clear"]) $(id).disabled = !wifiSupported() || wifiBusy;
+  }
+  function showWifi(result) {
+    const errors = {connect_timeout: "连接超时，请检查网络名称、密码及 2.4 GHz 设置。", start_failed: "无线驱动启动失败。", storage_error: "设备未能读取或保存配网设置。", link_lost: "无线连接已断开。", stop_failed: "已清除配置，但关闭无线失败，请重启开发板。"};
+    const link = {unconfigured: "尚未配网", connecting: "正在连接", connected: `已连接 · IP：${result.ip}`, disconnected: "未连接", error: "配网异常"}[result.state];
+    const provisioning = {connecting: "正在测试新网络", saved: "配网已保存", failed: result.saved ? "本次配网失败，已保留原配置" : "本次配网失败"}[result.provisioning];
+    $("wifi-status").textContent = [link, result.ssid, provisioning, errors[result.error]].filter(Boolean).join(" · ");
+  }
+  async function wifiAction(path, data) {
+    if (!wifiSupported() || wifiBusy) return;
+    const run = ++wifiRun;
+    wifiBusy = true;
+    wifiButtons();
+    try {
+      let result = await api(path, data);
+      const deadline = Date.now() + 25000;
+      while (run === wifiRun) {
+        showWifi(result);
+        if (result.provisioning !== "connecting") return;
+        if (Date.now() >= deadline) throw new Error("等待状态超时，请点击查看状态。");
+        await new Promise(resolve => setTimeout(resolve, 500));
+        if (run !== wifiRun) return;
+        result = await api("/api/wifi");
+      }
+    } catch (error) {
+      if (run === wifiRun) $("wifi-status").textContent = error.message;
+    } finally {
+      if (run === wifiRun) { wifiBusy = false; wifiButtons(); }
+    }
+  }
+  $("wifi-form").addEventListener("submit", event => {
+    event.preventDefault();
+    const password = $("wifi-password").value;
+    $("wifi-password").value = "";
+    wifiAction("/api/wifi/connect", {ssid: $("wifi-ssid").value, password});
+  });
+  bind("wifi-refresh", () => wifiAction("/api/wifi"));
+  bind("wifi-clear", () => {
+    if (window.confirm("清除开发板保存的 Wi‑Fi 配置？")) return wifiAction("/api/wifi/clear", {});
+  });
   function setMapping(mapping) {
     if (!mapping) return;
     $("panel").value = mapping.panel; $("rotation").value = mapping.rotation;
@@ -243,7 +287,15 @@
     if (mapping.brightness !== undefined) $("display-brightness").value = mapping.brightness;
   }
   function setDevice(data) {
+    if (device?.connected !== data.connected || device?.info?.boot_id !== data.info?.boot_id || device?.port !== data.port) {
+      ++wifiRun;
+      wifiBusy = false;
+      $("wifi-password").value = "";
+    }
     device = data; const connected = !!data.connected;
+    wifiButtons();
+    if (!wifiSupported()) $("wifi-status").textContent = connected ? "此固件不支持配网。" : "请先连接开发板。";
+    else if (!wifiBusy) $("wifi-status").textContent = "点击查看状态，或输入网络名称和密码。";
     $("connection-badge").textContent = connected ? "已连接开发板" : "离线设计"; $("connection-badge").className = "badge" + (connected ? " online" : "");
     $("connect-button").disabled = connected;
     for (const id of ["disconnect-button", "configure-display"]) $(id).disabled = !connected;

@@ -8,6 +8,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from editor.server import EditorServer, EditorState
+from unittest.mock import Mock
 
 
 class FakePages:
@@ -95,6 +96,29 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(self.request("GET", "/../../secret")[0], 404)
         self.assertEqual(self.request("POST", "/api/connect", {"port":"AUTO","execute":"anything"})[0], 400)
         self.assertEqual(FakeRobot.created, [])
+
+    def test_wifi_requires_same_origin_token_and_returns_no_password(self):
+        route = "/api/wifi/connect"
+        body = {"ssid": "创客教室", "password": "example-only"}
+        self.assertEqual(self.request("POST", route, body)[0], 409)
+        self.assertEqual(self.request("POST", "/api/connect", {"port": "FAKE"})[0], 200)
+        robot = FakeRobot.created[0]
+        status = {"state": "connected", "provisioning": "saved", "ip": "192.0.2.4"}
+        robot.wifi = Mock()
+        robot.wifi.connect.return_value = status
+        robot.wifi.status.return_value = status
+        robot.wifi.clear.return_value = {"state": "unconfigured"}
+        self.assertEqual(self.request("POST", route, body, {"X-Editor-Token": "wrong"})[0], 403)
+        self.assertEqual(self.request("POST", route, body, {"Origin": "https://evil.example"})[0], 403)
+        robot.wifi.connect.assert_not_called()
+        code, raw = self.request("POST", route, body)
+        self.assertEqual((code, json.loads(raw)), (200, status))
+        self.assertNotIn(b"example-only", raw)
+        robot.wifi.connect.assert_called_once_with("创客教室", "example-only")
+        self.assertEqual(json.loads(self.request("GET", "/api/wifi")[1]), status)
+        self.assertEqual(self.request("POST", "/api/wifi/clear", {"unrelated": True})[0], 400)
+        robot.wifi.clear.assert_not_called()
+        self.assertEqual(json.loads(self.request("POST", "/api/wifi/clear", {})[1])["state"], "unconfigured")
 
 
 if __name__ == "__main__": unittest.main()

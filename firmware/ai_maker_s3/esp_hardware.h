@@ -14,6 +14,8 @@ class EspHardware final : public Hardware {
   std::string bootId() const override { return boot_id_; }
   std::string loadState() override;
   bool saveState(const std::string& state) override;
+  std::string loadProgramState() override;
+  bool saveProgramState(const std::string& state) override;
   std::string loadPageSlot(int slot) override;
   bool savePageSlot(int slot, const std::string& data) override;
   bool erasePageSlot(int slot) override;
@@ -41,6 +43,12 @@ class EspHardware final : public Hardware {
   bool finishAudioPlayback() override { return audio_.finishPlayback(); }
   bool stopAudioIO() override { return audio_.stopIO(); }
   bool releaseAudio() override { return audio_.release(); }
+  bool wifiAvailable() const override { return true; }
+  bool loadWifi(std::string& profile) override;
+  bool saveWifi(const std::string& profile) override;
+  bool stopWifi() override;
+  bool startWifi(const std::string& ssid, const std::string& password) override;
+  std::string wifiIp(const std::string& ssid) override;
 
  private:
   Preferences preferences_;
