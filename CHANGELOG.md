@@ -1,6 +1,8 @@
 # 更新记录
 
-## SDK 0.8.3 — Wi-Fi 配网进度（本地）
+## v0.8.3 教学预发布 — SDK 0.8.3 / 固件 0.8.0
+
+提供 SDK wheel、应用 BIN、分段固件 ZIP、源码 ZIP 和校验清单。安装和分区条件见 [发布说明](RELEASE_NOTES.md)。
 
 - `Robot.setwifi()` 默认在控制台显示发送请求、等待 IP 和最终结果；状态字典与异常规则不变。传 `progress=False` 可静默调用。
 - `listwifi()` 仍只查询当前连接，未取得 IP 时返回空列表。固件和 USB 协议不变。

@@ -1,6 +1,6 @@
 # AI小创客SDK函数说明、配置与示例 V0.6
 
-当前固件 0.8.0、SDK 0.8.3，导入名 `ai_robot`，USB 协议 v1。本手册保留原文件名。实机及软件验证见 [验证记录](verification.md)，GitHub 已发布版本仍为 0.5.0。旧 GPIO/ADC/PWM 及 `configure` 接口保留兼容。
+当前固件 0.8.0、SDK 0.8.3，导入名 `ai_robot`，USB 协议 v1。本手册保留原文件名。见 [附件下载](https://github.com/moran-007/Class_ESP_AI/releases/tag/v0.8.3) 和 [实机及软件验证](verification.md)。旧 GPIO/ADC/PWM 及 `configure` 接口保留兼容。
 
 ## 1. 安装、连接及组合顺序
 
@@ -338,7 +338,7 @@ with Robot(port="COM5") as robot:
 
 save/enable/disable/clear任何一步失败都不自动重试，也不自动假定已经退出维护。如果保存已完成而maintenance.exit失败，必须核对状态；不要把“可能已保存”当作“下次开机已准备好”。STORAGE_ERROR不触发擦除NVS；PROGRAM_INVALID是模型/映射/限位错误；HARDWARE_ERROR要检查error与cleanup_required，不假装执行或清理完成。
 
-固化范围不包含音频、Turtle/图片、云端、任意函数/源码解释器。现在仍是C++固件，路线比较见 [MicroPython说明](MicroPython与当前方案.md)。0.6本地编译/回归及后续COM5升级、屏幕固化、清除恢复的分项结果见 [验证记录](verification.md)；0.6尚未发布GitHub附件，不能把成功回执视为屏幕/机械效果验收。
+固化范围不包含音频、Turtle/图片、云端或任意 Python 源码执行。固件仍使用 C++，路线比较见 [MicroPython说明](MicroPython与当前方案.md)。历次构建、屏幕固化、清除恢复结果见 [验证记录](verification.md)；回执不能代替实物验收。
 
 ## 15. 开始/结束同步录制（SDK0.6.1新增，固件仍0.6.0）
 

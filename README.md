@@ -1,48 +1,27 @@
 # AI小创客本地固件与Python SDK
 
-独立仓库：**Class_ESP_AI**。初学者从 [Python编程与开发指南](docs/开发指南.md) 开始，包含配置、可复制示例和逐项解释；维护者遵循 [功能与文档同步规则](CONTRIBUTING.md)。当前源码接口见 [V0.6 SDK函数手册](docs/SDK函数说明与示例_V0.6.md)，固件附件的适用对象、分区和升级前提见 [固件安装与版本兼容](docs/固件安装与版本兼容.md)。
+用电脑上的 Python 通过 USB 控制 ESP32-S3：配置 GPIO、舵机、屏幕和音频，也可以把支持的流程保存到板上独立运行。
 
-当前源码为 **Python SDK 0.8.3 / ESP32-S3 固件 0.8.0**。完整工程在 Windows 只需运行一次 [安装Python环境.cmd](安装Python环境.cmd)，所有示例使用根目录 `.venv`。
+当前教学预发布：[Class_ESP_AI v0.8.3](https://github.com/moran-007/Class_ESP_AI/releases/tag/v0.8.3)，包含 **Python SDK 0.8.3 / 固件 0.8.0**。完整工程在 Windows 运行一次 [安装Python环境.cmd](安装Python环境.cmd)，所有示例共用根目录 `.venv`。
 
-**USB Wi-Fi 配网**：双击 [配置硬件.cmd](配置硬件.cmd)，在「串口」页选择端口、输入 Wi-Fi 名称和密码。也可用 `robot.setwifi(name, password)`，控制台会显示连接进度与 IP。配网、查询、清除和屏幕状态页都在 [Wi-Fi 测试目录](tests/wifi/README.md)。
-
-**0.7.0 新增板端计数显示**：`Program.display.counter(...)` 固化后可独立运行。见 [16_counter.py](examples/portable/16_counter.py) 和 [参数/恢复说明](docs/数字累加计数器_V0.7.md)。实际版本和验证状态见 [验证记录](docs/verification.md)。
-
-本地0.7安装包为`sdk/python/dist/ai_maker_robot-0.7.0-py3-none-any.whl`，应用为`build/counter-native-usb/ai_maker_s3.ino.bin`。计数测试的清除和恢复之前备份流程入口在 [tests/counter](tests/counter/README.md)；恢复旧流程与只清除计数是两个不同操作。
-
-SDK **0.6.1** 新增 `robot.program.begin()` / `end()`：屏幕绘图同步预览并录制，结束后 `save(loop=True, autostart=True)`；该录制层兼容0.6.0及以上固件，单用录制无需重刷。完整例子为 [15_screen_record.py](examples/portable/15_screen_record.py)，逐项解释见 [录制与固化说明](docs/绘图录制与固化_V0.6.1.md)。本地安装包为`sdk/python/dist/ai_maker_robot-0.6.1-py3-none-any.whl`，GitHub旧附件不自动升级。
-
-**此前0.6.0已完成本地实现、软件回归、目标编译和COM5升级；屏幕A/B固化、清除复位及原默认页恢复均已通过，实屏效果经用户确认；0.6尚未发布GitHub附件。** 新增`Program`和`robot.program.save(...)`，支持把白名单硬件流程保存到ESP32，启用后下次通电独立执行；电脑连接可接管继续写新代码。不是任意Python函数固化。见 [固化教程](docs/开发指南.md#15-程序固化通电后独立运行)、[MicroPython与当前方案](docs/MicroPython与当前方案.md) 和 [12～14示例](examples/portable/README.md)。屏幕实测文件及清除说明见 [tests/standalone](tests/standalone/README.md)，逐项结果见 [验证记录](docs/verification.md)。首次使用需要支持0.6的固件，之后修改支持流程无需每次重刷。以下0.5发布链接和历史证据继续保留，不代表旧附件已自动升级。
-
-0.6 历史构建产物为 `sdk/python/dist/ai_maker_robot-0.6.0-py3-none-any.whl` 和 `build/standalone-native-usb/ai_maker_s3.ino.bin`，不随源码分发。当前设备升级请使用下面的最新分区说明。
-
-已有 [GitHub Releases](https://github.com/moran-007/Class_ESP_AI/releases/tag/v0.5.0) 附件是历史教学预发布 0.5.0；当前源码不含本机 `build/` 或 `dist/` 产物。需要配网和计数等新功能，请以本分支的源代码、安装入口和固件构建说明为准。
-
-```powershell
-python -m pip install "https://github.com/moran-007/Class_ESP_AI/releases/download/v0.5.0/ai_maker_robot-0.5.0-py3-none-any.whl"
-```
-
-COM5 已升级到 0.8.0 配网固件和自定义 16 MiB 分区，保留了原接线、页面和计数程序。OTA 仅预留槽位；当前仍使用 USB 升级。GitHub 已发布版本仍为 0.5.0。
-
-V0.5新增 **INMP441收音、MAX98357A播放、数字/ADC/PWM分开接口及可跨电脑安装的SDK**。先按实际接线改 [portable示例](examples/portable/README.md) 的COM和IO，再双击 `运行音频测试.cmd`。本地文件、录音和显式URL音频统一为16kHz/mono/PCM16LE的AudioClip；不包含AI服务器。详见 [IO与音频测试说明](docs/数字模拟IO与音频测试_V0.5.md) 和 [跨电脑安装](docs/跨电脑安装与直接导入_V0.5.md)。当前COM5已更新V0.5，仅验证音频配置与资源保护；实际收音/出声待用户接线测试。
-
-V0.4新增 **本地网页页面编辑器、板端默认页面、标准库 Turtle 电脑画图并发送到屏幕**。双击 `打开页面编辑器.cmd` 或 `打开Turtle绘图.cmd` 即可使用；推荐在Python文件中用 `connect("COM5")` 和外设 `configure(...)` 指定串口与IO；配置窗口/JSON仍可选。详细步骤、短代码和限制见 [页面与Turtle说明](docs/页面编辑器与Turtle_V0.4.md)。V0.4历史测试中，保存页面、复位恢复默认页和整屏图片通信验证通过，用户确认默认页文字、图标和颜色正常。
-
-V0.3新增 **ST7735S / ST7789 屏幕**：SPI信号和BLK引脚全部可配置，支持纯色、中文、矩形、线段与GPIO背光。先用 [配置硬件入口](配置硬件.cmd) 填写屏幕接线，再运行 [纯色测试](tests/quick/screen_colors.py) 或双击 `运行屏幕测试.cmd`。型号、7/8针接法与自定义引脚见 [屏幕使用说明](docs/屏幕测试与自定义引脚_V0.3.md)。
-
-**V0.2.1 修复原生 USB 长请求丢失导致的舵机 config.apply 超时。** 当前 COM5 已更新；原生 USB 和 UART 均在启动前配置 8192 字节 RX 缓冲。GPIO14 的舵机配置保存与完整读回已实机通过，用户随后确认 SG90 能来回转动。详见[排查记录](docs/舵机配置超时排查_V0.2.1.md)。
-
-当前已识别的板卡使用原生 USB COM5、GPIO48 板载 RGB。主教学固件为 `ai-maker-s3`，支持 SDK；之前的上电白灯版 `ai-maker-led-diagnostic` 是独立诊断程序。两者使用不同协议，不能混用脚本。实际安装与测试证据见[验证记录](docs/verification.md)。
+| 我想做什么 | 从这里开始 |
+|---|---|
+| 在电脑上运行课程示例 | 下载源码 ZIP，运行安装入口；见 [开发指南](docs/开发指南.md) |
+| 在自己的 Python 项目里 `import ai_robot` | 下载 wheel，见 [安装方法](docs/跨电脑安装与直接导入_V0.5.md) |
+| 安装或升级开发板固件 | 下载固件 ZIP，先读 [分区和版本兼容](docs/固件安装与版本兼容.md) |
+| 配网、查 IP 或清除网络 | 用 `robot.setwifi/listwifi/clearwifi`，见 [Wi-Fi 测试](tests/wifi/README.md) |
+| 屏幕画图、开机显示或固化计数 | [页面与 Turtle](docs/页面编辑器与Turtle_V0.4.md) · [固化录制](docs/绘图录制与固化_V0.6.1.md) · [计数器](docs/数字累加计数器_V0.7.md) |
+| 查 API 和验证结果 | [SDK 函数手册](docs/SDK函数说明与示例_V0.6.md) · [验证记录](docs/verification.md) · [更新记录](CHANGELOG.md) |
 
 ## 直接运行：优先使用这里
 
-跨电脑或新课程优先直接 `from ai_robot import Robot, AudioClip`，不需要_board或本工程路径。安装包为 `sdk/python/dist/ai_maker_robot-0.5.0-py3-none-any.whl`，本机已安装。音频入口为 [运行音频测试.cmd](运行音频测试.cmd)，可直接复制运行的文件位于 [examples/portable](examples/portable/README.md)。本机已编译并写入的V0.5应用位于 `build/audio-native-usb/ai_maker_s3.ino.bin`；不要把参考merged.bin直接写入当前板。
+跨电脑或新课程直接 `from ai_robot import Robot`。可复制的脚本见 [portable 示例](examples/portable/README.md)，音频入口见 [运行音频测试.cmd](运行音频测试.cmd)。
 
 组合顺序：先audio/display/servo.set → robot.start → digital/analog/pwm.set → 动作。下方保留原工程内便捷课程入口。
 
 SDK0.4.1新增 `robot.display.set(...)`、`robot.servo.set(pin=14)` 和 `robot.start()`：支持常见屏幕丝印别名及位置参数，可不使用with；多个外设先set再统一start。`fps`仅限制电脑端整屏图片发送上限。详见 [set接口、丝印与刷新帧率](docs/set接口_丝印对照与刷新帧率.md)，组合示例为 `tests/guide/12_multi_parts.py`，测速示例为 `13_display_fps.py`。旧configure/with写法继续支持，无需重刷固件。Turtle也可在开头配置，结尾 `finish(screen, robot=robot)` 复用连接，完整示例 `tests/guide/14_turtle_top_setup.py`。
 
-现在优先使用**代码内配置**：[运行示例.cmd](运行示例.cmd) 打开 [tests/guide](tests/guide/README.md) 中的实验。串口直接写 `connect("COM5")`，IO直接写 `robot.display.set(SCL=4, SDA=5, ...)` 等命名参数，无需JSON。详见 [代码内配置与最小示例](docs/代码内配置与最小示例.md) 和 [完整SDK函数手册](docs/SDK函数说明与示例_V0.5.md)。原 [统一配置窗口](配置硬件.cmd) 与 [hardware.json](config/hardware.json) 仍可选，配套示例在 `tests/guide_shared/`；旧手写实验保留。
+现在优先使用**代码内配置**：[运行示例.cmd](运行示例.cmd) 打开 [tests/guide](tests/guide/README.md) 中的实验。串口直接写 `Robot(port="COM5")`，IO 可写 `robot.display.set(SCL=4, SDA=5, ...)`。也可使用 [配置窗口](配置硬件.cmd) 与 [hardware.json](config/hardware.json)，配套示例在 `tests/guide_shared/`。
 
 1. 双击根目录的 **安装Python环境.cmd**（本机已准备好 `.venv`，以后通常不需要重复安装）。
 2. 双击 **运行示例.cmd** 选择实验，串口和IO就在对应Python文件的参数中；板载RGB只需USB。
@@ -62,7 +41,7 @@ with connect("COM5") as robot:
 
 ## 已实现范围
 
-| 功能 | 固件 / SDK0.5.0 状态 |
+| 功能 | 固件 0.8.0 / SDK 0.8.3 状态 |
 |---|---|
 | USB JSONL、版本握手、请求与错误回执 | 已实现 |
 | GPIO 输入、上下拉、输出及释放 | 已实现 |
@@ -81,6 +60,7 @@ with connect("COM5") as robot:
 | 本地/云端音频数据 | 相同AudioClip，严格PCM/WAV、显式有界HTTP音频URL；非AI云服务 |
 | SD、任意学生网页上传 | 尚未实现，能力声明false |
 | Wi-Fi | USB 配网、状态和 IPv4 查询、开机重连 |
+| 板端固化 | 有界 `Program`、会话绘图录制、开机独立执行、计数显示、清除与恢复 |
 | AI、云端、无线控制、OTA | 未实现 |
 
 普通 GPIO、舵机和屏幕SPI信号映射现已实现；I²S音频已接入当前会话的共享时钟映射，退出会话清除，不自动收音。屏幕SPI目前独占，不与其他SPI设备共享。回执不能替代实际屏幕图像验收。
