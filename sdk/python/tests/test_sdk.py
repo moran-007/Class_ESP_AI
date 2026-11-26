@@ -276,7 +276,7 @@ class SDKTests(unittest.TestCase):
 
     def test_unimplemented_modules_explicitly_rejected(self):
         robot, _ = self.connect()
-        for module in (robot.display, robot.audio, robot.web, robot.ai):
+        for module in (robot.display, robot.audio, robot.web):
             with self.assertRaises(UnsupportedCapability): module.anything()
 
     def test_builtin_led_set_off_payload_and_unverified_state(self):

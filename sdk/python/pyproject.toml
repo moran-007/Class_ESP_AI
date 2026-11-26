@@ -4,14 +4,18 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ai-maker-robot"
-version = "0.8.3"
-description = "Local USB Python SDK for the AI Maker ESP32-S3 teaching firmware"
+version = "0.9.0"
+description = "Python SDK for the AI Maker ESP32-S3 teaching firmware and AI voice gateway"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = ["pyserial>=3.5,<4"]
 
 [project.optional-dependencies]
 drawing = ["Pillow>=12.3,<14"]
+
+[project.urls]
+Repository = "https://github.com/moran-007/Class_ESP_AI"
+Releases = "https://github.com/moran-007/Class_ESP_AI/releases"
 
 [tool.setuptools.packages.find]
 where = ["src"]

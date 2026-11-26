@@ -59,6 +59,7 @@ class AudioWire(ScriptTransport):
         elif op=='device.status':result['data']['audio']={'configured':bool(self.audio_config),'active':self.active}
         elif op=='audio.configure':self.audio_config=copy.deepcopy(args);result['data']={'configured':True,**args}
         elif op=='audio.begin':self.active=True;result['data']={'active':True}
+        elif op=='audio.info':result['data']={'active':self.active,**self.audio_config}
         elif op=='audio.record.begin':self.recording=True;self.read_offset=0
         elif op=='audio.read':
             count=args['bytes'];pcm=struct.pack('<h',1234)*(count//2)
@@ -96,6 +97,32 @@ class AudioSDKTests(unittest.TestCase):
         self.assertTrue(all(r['args']['bytes']<=768 for r in self.wire.requests if r['op']=='audio.read'))
         self.assertTrue(all(len(base64.b64decode(r['args']['data']))<=768 for r in self.wire.requests if r['op']=='audio.write'))
         self.assertFalse(self.wire.recording or self.wire.playing)
+
+    def test_record_while_stops_at_release_or_sample_limit(self):
+        self.robot.audio.set()
+        self.robot.start()
+        pressed = iter([True, True, False])
+        clip = self.robot.audio.record_while(lambda: next(pressed), max_seconds=1)
+        self.assertEqual(len(clip.pcm), 2 * 768)
+        self.assertFalse(self.wire.recording)
+        capped = self.robot.audio.record_while(lambda: True, max_seconds=.05)
+        self.assertEqual(capped.samples, 800)
+        self.assertFalse(self.wire.recording)
+        self.assertIsNone(self.robot.audio.record_while(lambda: False))
+        self.assertFalse(self.wire.recording)
+        self.assertEqual(self.wire.requests[-1]["op"], "audio.record.end")
+
+    def test_record_while_releases_capture_when_reading_button_fails(self):
+        self.robot.audio.set()
+        self.robot.start()
+
+        def failed_read():
+            raise OSError("button disconnected")
+
+        with self.assertRaisesRegex(OSError, "button disconnected"):
+            self.robot.audio.record_while(failed_read)
+        self.assertFalse(self.wire.recording)
+        self.assertEqual(self.wire.requests[-1]["op"], "audio.stop")
 
     def test_failure_stops_audio_without_replay_or_replacing_the_error(self):
         self.robot.audio.set();self.robot.start();self.wire.fail_op='audio.write'

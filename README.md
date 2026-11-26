@@ -2,12 +2,24 @@
 
 用电脑上的 Python 通过 USB 控制 ESP32-S3：配置 GPIO、舵机、屏幕和音频，也可以把支持的流程保存到板上独立运行。
 
-当前教学预发布：[Class_ESP_AI v0.8.3](https://github.com/moran-007/Class_ESP_AI/releases/tag/v0.8.3)，包含 **Python SDK 0.8.3 / 固件 0.8.0**。完整工程在 Windows 运行一次 [安装Python环境.cmd](安装Python环境.cmd)，所有示例共用根目录 `.venv`。
+## 在线安装 Python SDK
+
+在运行自己程序的 Python 3.11+ 环境中安装。下面的命令会同时安装串口和绘图依赖。
+
+```powershell
+python -m pip install "ai-maker-robot[drawing] @ https://github.com/moran-007/Class_ESP_AI/releases/download/v0.9.0/ai_maker_robot-0.9.0-py3-none-any.whl"
+```
+
+安装完成后，在任意文件夹的 Python 脚本中写 `from ai_robot import Robot`。IDE 选择刚用于安装的同一个 Python 解释器。
+
+[SDK 0.9.0 发布页](https://github.com/moran-007/Class_ESP_AI/releases/tag/v0.9.0) 提供 SDK 附件；教学固件 0.8.0 从 [v0.8.3 教学预发布](https://github.com/moran-007/Class_ESP_AI/releases/tag/v0.8.3) 获取。使用完整工程时，运行一次 [安装Python环境.cmd](安装Python环境.cmd)，所有示例共用根目录 `.venv`。
+
+[AI 测试目录](tests/ai/README.md) 提供按住按钮录音、松开后提交并播报的入口。电脑负责联网，ESP32 通过原生 USB 收音和播报。[AI 调用教程](docs/开发指南.md#19-接入原-ai-服务器)
 
 | 我想做什么 | 从这里开始 |
 |---|---|
 | 在电脑上运行课程示例 | 下载源码 ZIP，运行安装入口；见 [开发指南](docs/开发指南.md) |
-| 在自己的 Python 项目里 `import ai_robot` | 下载 wheel，见 [安装方法](docs/跨电脑安装与直接导入_V0.5.md) |
+| 在自己的 Python 项目里 `import ai_robot` | 在线安装或下载 wheel，见 [安装方法](docs/跨电脑安装与直接导入_V0.5.md) |
 | 安装或升级开发板固件 | 下载固件 ZIP，先读 [分区和版本兼容](docs/固件安装与版本兼容.md) |
 | 配网、查 IP 或清除网络 | 用 `robot.setwifi/listwifi/clearwifi`，见 [Wi-Fi 测试](tests/wifi/README.md) |
 | 屏幕画图、开机显示或固化计数 | [页面与 Turtle](docs/页面编辑器与Turtle_V0.4.md) · [固化录制](docs/绘图录制与固化_V0.6.1.md) · [计数器](docs/数字累加计数器_V0.7.md) |
@@ -41,7 +53,7 @@ with connect("COM5") as robot:
 
 ## 已实现范围
 
-| 功能 | 固件 0.8.0 / SDK 0.8.3 状态 |
+| 功能 | 固件 0.8.0 / SDK 0.9.0 状态 |
 |---|---|
 | USB JSONL、版本握手、请求与错误回执 | 已实现 |
 | GPIO 输入、上下拉、输出及释放 | 已实现 |
@@ -61,7 +73,8 @@ with connect("COM5") as robot:
 | SD、任意学生网页上传 | 尚未实现，能力声明false |
 | Wi-Fi | USB 配网、状态和 IPv4 查询、开机重连 |
 | 板端固化 | 有界 `Program`、会话绘图录制、开机独立执行、计数显示、清除与恢复 |
-| AI、云端、无线控制、OTA | 未实现 |
+| AI 对话 | 电脑复用原 AI 服务器的文字和语音接口；需要已部署服务器及设备凭据 |
+| ESP32 无线控制和 OTA | 未实现 |
 
 普通 GPIO、舵机和屏幕SPI信号映射现已实现；I²S音频已接入当前会话的共享时钟映射，退出会话清除，不自动收音。屏幕SPI目前独占，不与其他SPI设备共享。回执不能替代实际屏幕图像验收。
 

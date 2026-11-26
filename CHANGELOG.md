@@ -1,5 +1,17 @@
 # 更新记录
 
+## SDK 0.9.0 — 在线安装与 AI 语音
+
+- GitHub Release 提供可直接用 pip 在线安装的 SDK wheel。选择 `[drawing]` 可一次装齐串口与绘图依赖。
+
+- 电脑端 `VoiceClient` 复用原 `/voice-api/v1` 文字、语音和任务接口；`robot.ai.talk()` 复用 `AudioClip` 与现有录放接口。无需升级教学固件。
+- 新增单文件对话示例，服务器地址、设备 ID 和 Token 在电脑配置。
+- 示例显示 AI 请求进度和任务编号，文字回答在服务器分段就绪后逐段显示。SDK 可选择 `progress=True` 与 `on_text`，既有调用及回执保持兼容。
+- 可调用 `AIID(device_id)` 和 `AItoken(token)` 分别设置凭据。`tests/ai/` 提供按住录音、松开发送并播报的单文件测试，读取 Git 忽略的本机配置。
+- `audio.record_while(keep_recording, max_seconds=20)` 复用现有 USB 音频协议，在按键松开或到达录音上限时结束采集。
+- `robot.ai.record_start()` 在后台录音，`robot.ai.record_end()` 负责停止、上传并按服务端段序打印文字和播放音频。
+- AI 调用区分凭据无效、明确的额度不足、限流、连接故障、HTTPS 故障与超时，可通过 `VoiceError.code` 自定义提示。
+
 ## v0.8.3 教学预发布 — SDK 0.8.3 / 固件 0.8.0
 
 提供 SDK wheel、应用 BIN、分段固件 ZIP、源码 ZIP 和校验清单。安装和分区条件见 [发布说明](RELEASE_NOTES.md)。

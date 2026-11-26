@@ -1,6 +1,6 @@
 # AI小创客SDK函数说明、配置与示例 V0.6
 
-当前固件 0.8.0、SDK 0.8.3，导入名 `ai_robot`，USB 协议 v1。本手册保留原文件名。见 [附件下载](https://github.com/moran-007/Class_ESP_AI/releases/tag/v0.8.3) 和 [实机及软件验证](verification.md)。旧 GPIO/ADC/PWM 及 `configure` 接口保留兼容。
+当前固件 0.8.0、源码 SDK 0.9.0，导入名 `ai_robot`，USB 协议 v1。本手册保留原文件名。[已发布附件](https://github.com/moran-007/Class_ESP_AI/releases/tag/v0.8.3) 还是 SDK 0.8.3。实机及软件验证见 [验证记录](verification.md)。
 
 ## 1. 安装、连接及组合顺序
 
@@ -139,6 +139,7 @@ fps为1～60整数或None，只限制PC display.image的帧开始上限，不设
 | `audio.info()` | 配置、active、driver_ok、cleanup_required、录放标志、计数、PCM元数据 |
 | `audio.begin()` | 初始化I²S时钟，默认静音，不录放；通常由start调用；返回started等状态 |
 | `audio.record(seconds=3)` | 有限正秒数≤30，按采样数取整，返回AudioClip；错误会尽力stop并保留原异常，不自动重读块 |
+| `audio.record_while(keep_recording, *, max_seconds=20)` | 逐块采集，回调返回假值或音频达到上限时结束。`keep_recording` 为无参数的函数，`max_seconds` 为有限正秒数且不超过 30。返回 `AudioClip`，零样本时返回 `None`。回调或录音失败时尽力停止采集并抛出原错误。 |
 | `audio.play(clip)` | 必须AudioClip；768字节块、偏移校验、结束排空并静音；返回bytes/samples/duration_seconds/state/physical_verified |
 | `audio.play_file(path, *, format="wav")` | 本地PCM WAV，裸PCM须显式format="pcm_s16le" |
 | `audio.play_url(url, **options)` | 明确下载成AudioClip再走同一play；参数同load_audio_url，不自动联系AI服务 |
@@ -392,3 +393,27 @@ save/enable/disable/clear任何一步失败都不自动重试，也不自动假�
 状态字段为 `state`, `provisioning`, `ssid`, `ip`, `saved`, `error`。状态不含密码。`wifi_provisioning` 缺失时抛出 `UnsupportedCapability`；参数非法抛 `ValueError`，设备拒绝会返回 `DeviceError`；连接失败看 `provisioning == "failed"` 及 `error`。旧网络可能已恢复，不能仅以 `ip` 非空判定配置成功。详细状态和 USB 格式见 [wifi-v1](../protocols/wifi-v1.md)。
 
 `Robot(port="COM5", read_only=True)` 不取得控制会话，只允许无需会话的查询，例如 `wifi.status()`、`get_info()`、`get_status()`，不会接管并停止板端计数。配网完整示例见 [17_wifi.py](../examples/portable/17_wifi.py)。
+
+## 18. AI 语音服务器（SDK 0.9.0）
+
+| 方法 | 用途 |
+|---|---|
+| `VoiceClient(url, device_id=None, token=None, *, timeout=90)` | 创建电脑端客户端。地址使用服务器根地址或 /voice-api/v1，支持 HTTPS 和本机 HTTP。 |
+| `robot.ai.set(url, device_id=None, token=None, *, timeout=90)` | 在当前 Robot 对象设置连接参数。省略凭据时，可在发出请求前分别设置。 |
+| `ai.AIID(device_id)` | 设置设备 ID，3～64 个字母、数字或 ._:-。VoiceClient 和 robot.ai 都可调用。robot.ai 未指定地址时使用原项目 HTTPS 网关。 |
+| `ai.AItoken(token)` | 设置设备 Token，1～512 个可打印 ASCII 字符，且不得包含空格。设置方法只更新当前对象的内存。 |
+| `voice.ask(text, *, audio=False, progress=False, on_text=None)` | 文字提问；`on_text=print` 逐段显示服务器已就绪的文字，最终仍返回 `VoiceReply`。`audio=True` 时还下载完整回复音频。`robot.ai.ask()` 同义。 |
+| `voice.dialogue(clip, *, audio=True, progress=False, on_segment=None)` | 提交已有 `AudioClip`。可传 `on_segment(index, text, clip)` 同步处理每个就绪音频段，段号从 0 开始。处理期间暂停网关等待计时。只需要分段时传 `audio=False`。`robot.ai.dialogue()` 同义。 |
+| `robot.ai.talk(seconds=3, *, play=True, progress=False)` | 复用板载录音；等到服务器回复后，用已配置的功放播放。`play=False` 不下载音频。 |
+| `robot.ai.record_start(*, max_seconds=20)` | 已配置网关凭据及录放引脚并启动后调用。后台采集且立即返回，不上传。上限可设为 0.2～30 秒，服务端另有限制。 |
+| `robot.ai.record_end(*, progress=True)` | 停止采集并提交一次。回复就绪一段就打印该段文字、在设备上播报该段。完成后返回 `VoiceReply`（`audio=None`）。少于 0.2 秒返回 `None`。`progress=False` 关闭控制台文字，依旧播报。 |
+
+`progress=True` 把提交、接收、任务阶段以及最终用时打印到终端。`on_text` 是同步回调，一次接收一个字符串，只有显式提供时才请求分段接口。若任务后来失败或超时，已传给回调的文字只代表部分回复。已拿到任务编号后，网关错误会带编号供排查，SDK 不会重发。
+
+`VoiceReply` 提供 `job_id`、`recognized_text`、`answer_text` 和 `audio`（`AudioClip` 或 `None`）。HTTP、任务、响应格式错误抛 `VoiceError`，可用 `RobotError` 一并捕获；参数错误抛 `ValueError`。`timeout` 配置请求和轮询的等待预算，单位秒，范围 `(0, 300]`，不含录放时间。SDK 在请求和分块读取之间检查截止时间，已阻塞的网络操作可能略超预算。SDK 不重发 POST。
+
+`VoiceError.code` 可用于自定义提示。`invalid_credentials` 表示网关拒绝设备凭据，`quota_exhausted` 表示服务已报告额度或余额不足，`rate_limited` 表示服务限流。`connection_error`、`timeout`、`tls_error` 分别表示连接失败、超时和 HTTPS 连接异常。其他错误包括 `http_error`、`job_failed`、`protocol_error`。
+
+一轮录音尚未结束时重复开始会得到 `recording_busy`，没有进行中的录音便调用结束会得到 `recording_inactive`。按 Ctrl+C 退出时会释放板端会话。已经提交的任务可能继续运行，已播报的分段不会重播。完整按钮和分段播报用法见 [单文件 AI 测试](../tests/ai/ai_test.py)。
+
+`talk()` 使用普通 USB 会话及 `audio.set(...)`、`robot.start()` 已启动的音频硬件。使用本机配置的脚本见 [AI 测试目录](../tests/ai/README.md)。可复制到其他电脑的范例见 [21_ai_dialogue.py](../examples/portable/21_ai_dialogue.py)。协议见 [voice-gateway-v1](../protocols/voice-gateway-v1.md)。

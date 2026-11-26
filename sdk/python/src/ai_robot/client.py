@@ -21,6 +21,7 @@ from .pages import Pages
 from .audio import Audio
 from .program import Programs
 from .wifi import Wifi
+from .voice import RobotVoice
 
 MAX_LINE = 4096
 PROTOCOL_VERSION = 1
@@ -57,7 +58,7 @@ class Robot:
         read_only: bool = False,
     ):
         if connection != "usb":
-            raise UnsupportedCapability("首版仅支持本地 USB，不包含 AI 或云连接")
+            raise UnsupportedCapability("Robot 当前只支持 USB 控制开发板；AI 服务请用 robot.ai.set()")
         if type(read_only) is not bool:
             raise ValueError("read_only 必须是布尔值")
         if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or timeout <= 0:
@@ -97,7 +98,7 @@ class Robot:
         self.program = Programs(self)
         self.wifi = Wifi(self)
         self.web = _Unavailable("student_web")
-        self.ai = _Unavailable("ai")
+        self.ai = RobotVoice(self)
         try:
             self._info = self._request("device.info")
             if self._info.get("firmware_family") != FAMILY or type(self._info.get("protocol_version")) is not int or self._info["protocol_version"] != PROTOCOL_VERSION:
@@ -330,6 +331,7 @@ class Robot:
         if self._closed:
             return
         self._closing = True
+        self.ai._discard_recording()
         self.program.cancel()
         self._stop.set()
         if self._thread is not None and self._thread is not threading.current_thread():

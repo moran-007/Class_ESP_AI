@@ -9,7 +9,7 @@
 | 文件 | 所需外设/行为 |
 |---|---|
 | 01_info.py | 只需USB，打印当前固件能力和引脚分类 |
-| 02_audio_record.py | INMP441，记录3秒，保存当前工作目录recording.wav及电平统计 |
+| 02_audio_record.py | INMP441，录 3 秒后保存 recording.wav 及电平统计。SDK 0.9.0 可设置 BUTTON_PIN 按住录音。 |
 | 03_audio_tone.py | MAX98357A+扬声器，播放1秒低幅440Hz测试音 |
 | 04_audio_echo.py | 两个模块共享时钟，先记录3秒再播放，半双工 |
 | 05_audio_file.py | 播放严格16kHz/单声道/16bit PCM WAV |
@@ -27,6 +27,7 @@
 | 17_wifi.py | USB 配网，支持中文名称，终端显示状态和 IPv4；`--status` 只读查询，`--clear` 清除；需支持配网的 0.8 固件 |
 | 18_single_file.py | 在一个 `.py` 中使用串口、可选的 `robot.setwifi(name, password)` 和板载 RGB；配网简写需要 SDK 0.8.1 |
 | 20_wifi_manage.py | 查询当前连接；修改 `CLEAR` 后可清除板端保存的网络。需 SDK 0.8.2。 |
+| 21_ai_dialogue.py | 默认连接原项目 HTTPS 网关进行文字对话。`MODE = "voice"` 录 3 秒后播报，`MODE = "button"` 按住录音、松开上传并逐段播报。需 SDK 0.9.0 和服务端设备凭据。 |
 | [Wi-Fi 屏幕真机测试](../../tests/wifi/README.md) | 测试入口在 `tests/wifi/`，复用板上 Wi-Fi 和屏幕接线，实时显示名称、IP 和北京时间 |
 
 逐项用途、短代码、参数解释和常见问题见 [开发指南](../../docs/开发指南.md)。后续新增功能同时更新该指南与本表；上述文件可单独复制，所有IO按实际接线调整。

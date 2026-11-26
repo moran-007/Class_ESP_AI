@@ -12,3 +12,4 @@ output/
 tempCodeRunnerFile.py
 recording.wav
 recording.pcm
+/config/ai.local.json

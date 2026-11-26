@@ -1,5 +1,13 @@
 # AI 小创客本地 Python SDK
 
+Python 3.11+ 可从 GitHub 安装 SDK 和串口、绘图依赖。Turtle 窗口还需要 Python 带 Tcl/Tk。
+
+```powershell
+python -m pip install "ai-maker-robot[drawing] @ https://github.com/moran-007/Class_ESP_AI/releases/download/v0.9.0/ai_maker_robot-0.9.0-py3-none-any.whl"
+```
+
+在这个 Python 环境中运行 `from ai_robot import Robot` 即可使用。安装方法见 [跨电脑说明](../../docs/跨电脑安装与直接导入_V0.5.md)。
+
 ## 0.7板端每秒加一
 
 需要SDK和固件0.7.0的standalone_counter能力；不是电脑while循环。终端控件必须是主流程最后一步，保持loop=False默认值：
@@ -43,6 +51,8 @@ with Robot(port="COM5") as robot:
 支持动作立即预览并录入；wait实际等待并录入时长。end返回独立Program但不写Flash；save省略Program时保存最近成功end的快照，显式save(Program)兼容。cancel丢弃草稿和隐式快照，不撤销已预览动作或删除板端内容；stop/close仍可正常停止。状态查询/心跳不录入；图片/音频/pages/配置更改和GPIO/ADC读取拒绝；录制是调用步骤，不是屏幕截图或Python源码转换。完整说明见 [录制教程](../../docs/绘图录制与固化_V0.6.1.md)。
 
 可在单份 Python 文件中用 `robot.setwifi(name, password)` 配网，后续复用同一个 `robot`。SDK 0.8.3 起默认输出配网阶段，传 `progress=False` 可关闭。`robot.listwifi()` 查询当前连接，`robot.clearwifi()` 清除板端保存的网络。旧入口 `robot.wifi.connect/status/clear` 仍可使用，需要固件声明 `wifi_provisioning`。只需查看时可用 `Robot(port="COM5", read_only=True)`。
+
+SDK 0.9.0 可用 `VoiceClient(url, device_id, token).ask(text)` 连接现有 AI 网关。也可以创建 `VoiceClient(url)` 后分别调用 `ai.AIID(device_id)` 和 `ai.AItoken(token)`。`robot.ai` 直接设置凭据时使用原项目网关，也可先调用 `robot.ai.set(url)` 指定服务器。按下按钮可调用 `robot.ai.record_start()`，松开调用 `robot.ai.record_end()`，自动提交录音并逐段打印和播报回复。完整程序见 [AI 测试目录](../../tests/ai/README.md)。
 
 ## 保存到开发板，通电独立运行
 

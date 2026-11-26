@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import array
 import base64
+from collections.abc import Callable
 from dataclasses import dataclass
 import io
 import math
@@ -282,12 +283,20 @@ class Audio:
 
     def record(self, seconds=3):
         """Capture0..30s into a PC AudioClip; not voice recognition or mic detection."""
-        count = _duration(seconds) * SAMPLE_WIDTH
+        return self._record(_duration(seconds) * SAMPLE_WIDTH)
+
+    def record_while(self, keep_recording: Callable[[], bool], *, max_seconds=20) -> AudioClip | None:
+        """Record until the callback returns false or the sample limit is reached."""
+        if not callable(keep_recording):
+            raise ValueError('keep_recording 须为返回是否继续录音的函数')
+        return self._record(_duration(max_seconds) * SAMPLE_WIDTH, keep_recording)
+
+    def _record(self, count, keep_recording=None):
         self._check('audio_in')
         pcm = bytearray()
         try:
             self._robot._request('audio.record.begin')
-            while len(pcm) < count:
+            while len(pcm) < count and (keep_recording is None or keep_recording()):
                 expected = min(CHUNK_BYTES, count - len(pcm))
                 result = self._robot._request('audio.read', {'bytes': expected})
                 if type(result.get('offset')) is not int or result['offset'] != len(pcm) or type(result.get('bytes')) is not int or result['bytes'] != expected:
@@ -297,9 +306,9 @@ class Audio:
                 if len(chunk) != expected: raise ProtocolError('录音实际PCM字节数与回执不一致')
                 pcm.extend(chunk)
             end = self._robot._request('audio.record.end')
-            if type(end.get('bytes')) is not int or end['bytes'] != count or type(end.get('samples')) is not int or end['samples'] != count // 2:
+            if type(end.get('bytes')) is not int or end['bytes'] != len(pcm) or type(end.get('samples')) is not int or end['samples'] != len(pcm) // SAMPLE_WIDTH:
                 raise ProtocolError('录音结束回执长度不匹配')
-            return AudioClip(bytes(pcm))
+            return AudioClip(bytes(pcm)) if pcm else None
         except BaseException:
             self._stop_on_error()
             raise
